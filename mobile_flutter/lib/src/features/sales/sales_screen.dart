@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -18,24 +17,12 @@ class SalesScreen extends StatefulWidget {
 
 class _SalesScreenState extends State<SalesScreen> {
   final _subscriptionMiddleware = SubscriptionMiddleware();
-  final _descriptionController = TextEditingController();
-  final _valueController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
   final _customerSearchController = TextEditingController();
   final _productSearchController = TextEditingController();
-  final _loanDueDateController = TextEditingController();
-  final _loanInterestController = TextEditingController(text: '2');
-  String _mode = 'livre';
   String _paymentMethod = 'pix';
-  LoanInterestUnit _loanInterestUnit = LoanInterestUnit.month;
   String? _selectedProductId;
   CustomerRecord? _selectedCustomer;
-  String _errorText(Object error) {
-    if (error is FirebaseException) {
-      return error.message ?? 'Falha ao salvar no Firebase.';
-    }
-    return error.toString();
-  }
 
   String _paymentMethodLabel(String method) {
     switch (method) {
@@ -47,8 +34,6 @@ class _SalesScreenState extends State<SalesScreen> {
         return 'Cartao';
       case 'fiado':
         return 'Fiado';
-      case 'emprestimo':
-        return 'Emprestimo';
       default:
         return 'Outros';
     }
@@ -300,6 +285,7 @@ class _SalesScreenState extends State<SalesScreen> {
       'removeSale',
     );
     if (!canAccess) return;
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -329,13 +315,9 @@ class _SalesScreenState extends State<SalesScreen> {
 
   @override
   void dispose() {
-    _descriptionController.dispose();
-    _valueController.dispose();
     _quantityController.dispose();
     _customerSearchController.dispose();
     _productSearchController.dispose();
-    _loanDueDateController.dispose();
-    _loanInterestController.dispose();
     super.dispose();
   }
 
@@ -436,10 +418,9 @@ class _SalesScreenState extends State<SalesScreen> {
 
   void _resetAfterSale({required bool clearCustomer}) {
     setState(() {
-      _descriptionController.clear();
-      _valueController.clear();
       _quantityController.text = '1';
       _selectedProductId = null;
+      _productSearchController.clear();
       if (clearCustomer) {
         _customerSearchController.clear();
         _selectedCustomer = null;
@@ -448,13 +429,9 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   bool get _hasDraft {
-    return _descriptionController.text.trim().isNotEmpty ||
-        _valueController.text.trim().isNotEmpty ||
-        _quantityController.text.trim() != '1' ||
+    return _quantityController.text.trim() != '1' ||
         _customerSearchController.text.trim().isNotEmpty ||
         _productSearchController.text.trim().isNotEmpty ||
-        _loanDueDateController.text.trim().isNotEmpty ||
-        _loanInterestController.text.trim() != '2' ||
         _selectedProductId != null ||
         _selectedCustomer != null;
   }
@@ -480,12 +457,8 @@ class _SalesScreenState extends State<SalesScreen> {
     );
     if (shouldCancel != true || !mounted) return;
     setState(() {
-      _mode = 'livre';
       _paymentMethod = 'pix';
       _productSearchController.clear();
-      _loanDueDateController.clear();
-      _loanInterestController.text = '2';
-      _loanInterestUnit = LoanInterestUnit.month;
     });
     _resetAfterSale(clearCustomer: true);
     ScaffoldMessenger.of(
@@ -499,139 +472,66 @@ class _SalesScreenState extends State<SalesScreen> {
       'registerSale',
     );
     if (!canAccess) return;
+    if (!mounted) return;
     final isFiado = _paymentMethod == 'fiado';
-    final isLoan = _paymentMethod == 'emprestimo';
     final typedCustomer = _customerSearchController.text.trim();
     final customerName =
         _selectedCustomer?.name ??
         (typedCustomer.isEmpty ? null : typedCustomer);
-    if ((isFiado || isLoan) && customerName == null) {
+    if (isFiado && customerName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isLoan
-                ? 'Informe o cliente para venda de emprestimo.'
-                : 'Informe o cliente para venda fiado.',
-          ),
-        ),
+        const SnackBar(content: Text('Informe o cliente para venda fiado.')),
       );
       return;
     }
-    DateTime? loanDueDate;
-    var loanInterestRate = 2.0;
-    if (isLoan) {
-      final parts = _loanDueDateController.text.split('/');
-      if (parts.length != 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Informe o vencimento do emprestimo.')),
-        );
-        return;
-      }
-      loanDueDate = DateTime(
-        int.parse(parts[2]),
-        int.parse(parts[1]),
-        int.parse(parts[0]),
-      );
-      loanInterestRate =
-          double.tryParse(_loanInterestController.text.replaceAll(',', '.')) ??
-          0;
-    }
-    final mustUseProduct = _mode == 'produto';
-    if (mustUseProduct && _selectedProductId == null) {
+    if (_selectedProductId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Selecione um produto para venda com produto.'),
+          content: Text('Selecione um produto para finalizar a venda.'),
         ),
       );
       return;
     }
-    final shouldUseProduct = _selectedProductId != null;
     late final _SaleReceiptData receiptData;
-    if (shouldUseProduct) {
-      final quantity = double.tryParse(
-        _quantityController.text.replaceAll(',', '.'),
+    final quantity = double.tryParse(
+      _quantityController.text.replaceAll(',', '.'),
+    );
+    if (quantity == null || quantity <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe uma quantidade valida.')),
       );
-      if (quantity == null || quantity <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Informe uma quantidade valida.')),
-        );
-        return;
-      }
-      final error = await store.registerProductSale(
-        productId: _selectedProductId!,
-        quantity: quantity,
-        paymentMethod: _paymentMethod,
-        customerName: customerName,
-        loanDueDate: loanDueDate,
-        loanInterestRate: loanInterestRate,
-        loanInterestUnit: _loanInterestUnit,
-      );
-      if (!mounted) return;
-      if (error != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error)));
-        return;
-      }
-      ProductRecord? product;
-      for (final item in store.products) {
-        if (item.id == _selectedProductId) {
-          product = item;
-          break;
-        }
-      }
-      final total = (product?.salePrice ?? 0) * quantity;
-      receiptData = _SaleReceiptData(
-        description: 'Venda de ${product?.name ?? 'Produto'}',
-        total: total,
-        paymentMethod: _paymentMethod,
-        customerName: customerName,
-        productName: product?.name,
-        quantity: quantity,
-        createdAt: DateTime.now(),
-      );
-    } else {
-      final value = double.tryParse(_valueController.text.replaceAll(',', '.'));
-      if (value == null || value <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Informe um valor valido para a venda livre.'),
-          ),
-        );
-        return;
-      }
-      try {
-        await store.registerFreeSale(
-          description: _descriptionController.text.trim().isEmpty
-              ? 'Venda livre'
-              : _descriptionController.text.trim(),
-          total: value,
-          paymentMethod: _paymentMethod,
-          customerName: customerName,
-          loanDueDate: loanDueDate,
-          loanInterestRate: loanInterestRate,
-          loanInterestUnit: _loanInterestUnit,
-        );
-      } catch (error) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_errorText(error))));
-        return;
-      }
-      if (!mounted) return;
-      receiptData = _SaleReceiptData(
-        description: _descriptionController.text.trim().isEmpty
-            ? 'Venda livre'
-            : _descriptionController.text.trim(),
-        total: value,
-        paymentMethod: _paymentMethod,
-        customerName: customerName,
-        productName: null,
-        quantity: null,
-        createdAt: DateTime.now(),
-      );
+      return;
     }
+    final error = await store.registerProductSale(
+      productId: _selectedProductId!,
+      quantity: quantity,
+      paymentMethod: _paymentMethod,
+      customerName: customerName,
+    );
+    if (!mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    ProductRecord? product;
+    for (final item in store.products) {
+      if (item.id == _selectedProductId) {
+        product = item;
+        break;
+      }
+    }
+    final total = (product?.salePrice ?? 0) * quantity;
+    receiptData = _SaleReceiptData(
+      description: 'Venda de ${product?.name ?? 'Produto'}',
+      total: total,
+      paymentMethod: _paymentMethod,
+      customerName: customerName,
+      productName: product?.name,
+      quantity: quantity,
+      createdAt: DateTime.now(),
+    );
     if (!mounted) return;
     final action = await _askReceiptAction();
     if (action == 'print') {
@@ -678,25 +578,6 @@ class _SalesScreenState extends State<SalesScreen> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
             children: [
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment<String>(
-                    value: 'livre',
-                    label: Text('Venda livre'),
-                  ),
-                  ButtonSegment<String>(
-                    value: 'produto',
-                    label: Text('Com produto'),
-                  ),
-                ],
-                selected: <String>{_mode},
-                onSelectionChanged: (value) {
-                  setState(() {
-                    _mode = value.first;
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
               TextField(
                 controller: _customerSearchController,
                 decoration: InputDecoration(
@@ -795,7 +676,7 @@ class _SalesScreenState extends State<SalesScreen> {
                     ),
                   ),
                 ),
-              if (_mode == 'produto' && productQuery.isEmpty)
+              if (productQuery.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 6),
                   child: Text(
@@ -815,52 +696,28 @@ class _SalesScreenState extends State<SalesScreen> {
               DropdownButtonFormField<String?>(
                 value: _selectedProductId,
                 menuMaxHeight: 320,
-                decoration: const InputDecoration(
-                  labelText: 'Produto (opcional)',
-                ),
-                items: <DropdownMenuItem<String?>>[
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('Sem produto'),
-                  ),
-                  ...dropdownProducts.map(
-                    (product) => DropdownMenuItem<String?>(
-                      value: product.id,
-                      child: Text(
-                        '${product.name} (${product.stock.toStringAsFixed(2)} ${product.unit})',
+                decoration: const InputDecoration(labelText: 'Produto'),
+                items: dropdownProducts
+                    .map(
+                      (product) => DropdownMenuItem<String?>(
+                        value: product.id,
+                        child: Text(
+                          '${product.name} (${product.stock.toStringAsFixed(2)} ${product.unit})',
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+                    )
+                    .toList(),
                 onChanged: (value) =>
                     _onProductSelectionChanged(value, allProducts),
               ),
-              if (_selectedProductId != null || _mode == 'produto') ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _quantityController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(labelText: 'Quantidade'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _quantityController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
-              ] else ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Descricao da venda',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _valueController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(labelText: 'Valor (R\$)'),
-                ),
-              ],
+                decoration: const InputDecoration(labelText: 'Quantidade'),
+              ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _paymentMethod,
@@ -872,10 +729,6 @@ class _SalesScreenState extends State<SalesScreen> {
                   DropdownMenuItem(value: 'dinheiro', child: Text('Dinheiro')),
                   DropdownMenuItem(value: 'cartao', child: Text('Cartao')),
                   DropdownMenuItem(value: 'fiado', child: Text('Fiado')),
-                  DropdownMenuItem(
-                    value: 'emprestimo',
-                    child: Text('Emprestimo'),
-                  ),
                   DropdownMenuItem(value: 'outros', child: Text('Outros')),
                 ],
                 onChanged: (value) {
@@ -884,62 +737,6 @@ class _SalesScreenState extends State<SalesScreen> {
                   });
                 },
               ),
-              if (_paymentMethod == 'emprestimo') ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _loanDueDateController,
-                  readOnly: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Vencimento do emprestimo',
-                    suffixIcon: Icon(Icons.calendar_today_outlined),
-                  ),
-                  onTap: () async {
-                    final selected = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 3650)),
-                      initialDate: DateTime.now().add(const Duration(days: 30)),
-                    );
-                    if (selected == null) return;
-                    setState(() {
-                      _loanDueDateController.text = AppFormatters.date(
-                        selected,
-                      );
-                    });
-                  },
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _loanInterestController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(labelText: 'Juros (%)'),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<LoanInterestUnit>(
-                  value: _loanInterestUnit,
-                  decoration: const InputDecoration(
-                    labelText: 'Periodicidade dos juros',
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: LoanInterestUnit.day,
-                      child: Text('Ao dia'),
-                    ),
-                    DropdownMenuItem(
-                      value: LoanInterestUnit.month,
-                      child: Text('Ao mes'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      _loanInterestUnit = value;
-                    });
-                  },
-                ),
-              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -972,16 +769,13 @@ class _SalesScreenState extends State<SalesScreen> {
                   ),
                 ),
               ...sales.map((sale) {
-                final modeLabel = sale.mode == SaleMode.product
-                    ? 'Com produto'
-                    : 'Livre';
                 final customerLabel = sale.customerName ?? 'Sem cliente';
                 final productLabel = sale.productName ?? 'Sem produto';
                 return GradientCard(
                   child: ListTile(
                     title: Text(sale.description),
                     subtitle: Text(
-                      '$modeLabel | Cliente: $customerLabel | Produto: $productLabel | ${sale.paymentMethod} | ${AppFormatters.time(sale.createdAt)}',
+                      'Cliente: $customerLabel | Produto: $productLabel | ${sale.paymentMethod} | ${AppFormatters.time(sale.createdAt)}',
                     ),
                     trailing: SizedBox(
                       width: 130,
