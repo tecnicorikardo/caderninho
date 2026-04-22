@@ -12,10 +12,12 @@ class VitrinePage extends StatelessWidget {
   final String slug;
 
   Future<_StoreLookupResult?> _findStoreBySlug() async {
-    final normalized = slug.trim().toLowerCase();
+    final normalized = _normalizeSlugPath(slug);
+    if (normalized.isEmpty) return null;
     final query = await FirebaseFirestore.instance
         .collection('users')
         .where('storeSlug', isEqualTo: normalized)
+        .where('is_active', isEqualTo: true)
         .limit(1)
         .get();
 
@@ -64,6 +66,10 @@ class VitrinePage extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
+          if (storeSnapshot.hasError) {
+            return const _VitrineErrorState();
+          }
+
           final storeData = storeSnapshot.data;
           if (storeData == null) {
             return const _EmptyStoreState();
@@ -74,6 +80,10 @@ class VitrinePage extends StatelessWidget {
             builder: (context, productsSnapshot) {
               if (productsSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
+              }
+
+              if (productsSnapshot.hasError) {
+                return const _VitrineErrorState();
               }
 
               final docs = productsSnapshot.data?.docs ?? [];
@@ -207,6 +217,15 @@ List<String> _extractImageList(Map<String, dynamic> data) {
     }
   }
   return urls.toList();
+}
+
+String _normalizeSlugPath(String value) {
+  final lowercase = value.trim().toLowerCase();
+  return lowercase
+      .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
+      .replaceAll(RegExp(r'[\s_]+'), '-')
+      .replaceAll(RegExp('-{2,}'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
 }
 
 class _StoreHero extends StatelessWidget {
@@ -727,6 +746,52 @@ class _EmptyStoreState extends StatelessWidget {
             SizedBox(height: 8),
             Text(
               'Verifique o link da vitrine ou peça um novo endereco para a loja.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VitrineErrorState extends StatelessWidget {
+  const _VitrineErrorState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+        ),
+      ),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 540),
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.warning_amber_outlined, size: 44),
+            SizedBox(height: 10),
+            Text(
+              'Nao foi possivel abrir a vitrine',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Tente atualizar a pagina. Se continuar, gere novamente o link da vitrine nas configuracoes da loja.',
               textAlign: TextAlign.center,
             ),
           ],

@@ -64,9 +64,9 @@ class _StoreScreenState extends State<StoreScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erro: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -74,15 +74,15 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   void _copyLink(String slug) {
-    final url = 'https://bloquinhodigital.web.app/$slug';
+    final url = 'https://bloquinhodigital.web.app/vitrine/$slug';
     Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copiado!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Link copiado!')));
   }
 
   Future<void> _openVitrine(String slug) async {
-    final url = Uri.parse('https://bloquinhodigital.web.app/$slug');
+    final url = Uri.parse('https://bloquinhodigital.web.app/vitrine/$slug');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     }
@@ -91,9 +91,7 @@ class _StoreScreenState extends State<StoreScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Minha Loja'),
-      ),
+      appBar: AppBar(title: const Text('Minha Loja')),
       body: ListenableBuilder(
         listenable: AppStoreScope.of(context),
         builder: (context, _) {
@@ -101,7 +99,7 @@ class _StoreScreenState extends State<StoreScreen> {
           final profile = store.shopProfile;
           final slug = profile.storeSlug;
           final vitrineUrl = slug.isNotEmpty
-              ? 'bloquinhodigital.web.app/$slug'
+              ? 'bloquinhodigital.web.app/vitrine/$slug'
               : null;
 
           return SingleChildScrollView(
@@ -123,7 +121,11 @@ class _StoreScreenState extends State<StoreScreen> {
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.storefront, color: Colors.white, size: 20),
+                            Icon(
+                              Icons.storefront,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                             SizedBox(width: 8),
                             Text(
                               'Sua Vitrine Online',
@@ -242,7 +244,9 @@ class _StoreScreenState extends State<StoreScreen> {
                                   ),
                                 )
                               : const Icon(Icons.save),
-                          label: Text(_saving ? 'Salvando...' : 'Salvar alterações'),
+                          label: Text(
+                            _saving ? 'Salvando...' : 'Salvar alterações',
+                          ),
                           style: FilledButton.styleFrom(
                             padding: const EdgeInsets.all(16),
                           ),

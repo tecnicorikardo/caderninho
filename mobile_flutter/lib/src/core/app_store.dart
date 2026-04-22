@@ -91,6 +91,27 @@ class AppStore extends ChangeNotifier {
     }
   }
 
+  Future<void> _syncPublicStoreProfile(ShopProfile profile) async {
+    final storeName = profile.storeName.trim();
+    final normalizedSlug = _normalizeSlug(
+      profile.storeSlug.trim().isEmpty ? storeName : profile.storeSlug,
+    );
+    if (storeName.isEmpty && normalizedSlug.isEmpty) return;
+
+    try {
+      await _db.collection('users').doc(uid).set({
+        'uid': uid,
+        'storeSlug': normalizedSlug,
+        'is_active': profile.isActive,
+        'storeName': storeName,
+        'phone': profile.phone.trim(),
+        'updatedAt': DateTime.now(),
+      }, SetOptions(merge: true));
+    } catch (error) {
+      debugPrint('Falha ao sincronizar vitrine publica: $error');
+    }
+  }
+
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -264,6 +285,10 @@ class AppStore extends ChangeNotifier {
           .listen(
             (snapshot) {
               _shopProfile = ShopProfile.fromDoc(snapshot);
+              if (_shopProfile.storeName.trim().isNotEmpty ||
+                  _shopProfile.storeSlug.trim().isNotEmpty) {
+                unawaited(_syncPublicStoreProfile(_shopProfile));
+              }
               notifyListeners();
             },
             onError: (Object error, StackTrace stackTrace) {

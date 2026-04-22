@@ -109,8 +109,9 @@ class _GestorComercialAppState extends State<GestorComercialApp> {
             final home = user == null
                 ? LoginScreen(authService: authService)
                 : const _HomeOrSetup();
-            final initialLocation = Uri.base.path.isEmpty || Uri.base.path == '/' 
-                ? '/' 
+            final initialLocation =
+                Uri.base.path.isEmpty || Uri.base.path == '/'
+                ? '/'
                 : Uri.base.path;
 
             final router = GoRouter(
@@ -119,14 +120,14 @@ class _GestorComercialAppState extends State<GestorComercialApp> {
               routes: [
                 GoRoute(path: '/', builder: (_, __) => home),
                 GoRoute(
-                  path: '/:slug',
+                  path: '/vitrine/:slug',
                   builder: (context, state) {
                     final slug = state.pathParameters['slug'] ?? '';
                     return VitrinePage(slug: slug);
                   },
                 ),
                 GoRoute(
-                  path: '/vitrine/:slug',
+                  path: '/:slug',
                   builder: (context, state) {
                     final slug = state.pathParameters['slug'] ?? '';
                     return VitrinePage(slug: slug);

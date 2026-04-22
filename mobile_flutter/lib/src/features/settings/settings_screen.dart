@@ -846,8 +846,8 @@ class _VitrineCard extends StatelessWidget {
     final storeName = store.shopProfile.storeName;
     final hasSlug = slug.isNotEmpty;
     final vitrineUrl = hasSlug
-        ? 'https://bloquinhodigital.web.app/$slug'
-        : null;
+        ? 'https://bloquinhodigital.web.app/vitrine/$slug'
+        : '';
 
     return Container(
       width: double.infinity,
@@ -891,9 +891,9 @@ class _VitrineCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -901,7 +901,7 @@ class _VitrineCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      vitrineUrl!,
+                      vitrineUrl,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -918,7 +918,7 @@ class _VitrineCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _copyLink(context, vitrineUrl!),
+                    onPressed: () => _copyLink(context, vitrineUrl),
                     icon: const Icon(Icons.copy, size: 16),
                     label: const Text('Copiar link'),
                     style: OutlinedButton.styleFrom(
@@ -930,7 +930,7 @@ class _VitrineCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => _openLink(vitrineUrl!),
+                    onPressed: () => _openLink(vitrineUrl),
                     icon: const Icon(Icons.open_in_new, size: 16),
                     label: const Text('Abrir vitrine'),
                     style: FilledButton.styleFrom(
