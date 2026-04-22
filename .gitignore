@@ -1,0 +1,31 @@
+# Node / Next
+web/node_modules
+web/.next
+web/out
+web/.env.local
+
+# Firebase Functions
+functions/.env
+functions/.env.local
+functions/.env.*
+
+# Flutter
+mobile_flutter/.dart_tool
+mobile_flutter/.flutter-plugins
+mobile_flutter/.flutter-plugins-dependencies
+mobile_flutter/.packages
+mobile_flutter/build
+
+# General
+.env
+.env.*
+!.env.example
+.appdata/
+.localappdata/
+.userprofile/
+.pub-cache/
+.firebase/hosting.*.cache
+*firebase-adminsdk*.json
+users.json
+.DS_Store
+Thumbs.db

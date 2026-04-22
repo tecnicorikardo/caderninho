@@ -1,0 +1,20 @@
+{
+  "name": "bloquinho-functions",
+  "private": true,
+  "main": "src/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "lint": "echo \"No lint configured\"",
+    "migrate:vitrine:dry": "node scripts/migrate-vitrine-fields.js --dry-run",
+    "migrate:vitrine": "node scripts/migrate-vitrine-fields.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.1",
+    "firebase-functions": "^7.0.5",
+    "mercadopago": "^2.12.0"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "16911555826",
+    "project_id": "bloquinhodigital",
+    "storage_bucket": "bloquinhodigital.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:16911555826:android:abbce1cf443c3eddef846b",
+        "android_client_info": {
+          "package_name": "com.rikardo.caderninho"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8WHXek0Bmk8lpuE6iP5U8NSRDP3X9hFM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
