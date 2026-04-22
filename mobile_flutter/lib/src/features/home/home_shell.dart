@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../customers/customers_screen.dart';
 import '../debts/debts_screen.dart';
-import '../finance/finance_screen.dart';
 import '../products/products_screen.dart';
 import '../reports/reports_screen.dart';
 import '../settings/settings_screen.dart';
@@ -41,9 +40,6 @@ class _HomeShellState extends State<HomeShell> {
         return;
       case DashboardModule.dividas:
         _openScreen(const DebtsScreen());
-        return;
-      case DashboardModule.financeiro:
-        _openScreen(const FinanceScreen());
         return;
       case DashboardModule.relatorios:
         _openScreen(const ReportsScreen());

@@ -12,7 +12,6 @@ enum DashboardModule {
   vendas,
   fiados,
   dividas,
-  financeiro,
   relatorios,
   configuracoes,
   produtos,
@@ -57,19 +56,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final authService = AuthService();
     final userEmail = authService.currentUser?.email ?? '';
     final firstName = userEmail.split('@').first.split('.').first;
-    final displayName = firstName.isNotEmpty 
-        ? firstName[0].toUpperCase() + firstName.substring(1) 
+    final displayName = firstName.isNotEmpty
+        ? firstName[0].toUpperCase() + firstName.substring(1)
         : 'Usuário';
-    
+
     final now = DateTime.now();
     final date = AppFormatters.date(now);
     final salesCount = store.todaysSalesCount;
     final salesTotal = store.todaysSalesTotal;
     final fiadosCount = store.todaysFiadosCount;
     final fiadosOpen = store.todaysFiadosOpenTotal;
-    final revenue = store.todayRevenue;
-    final expense = store.todayExpense;
-    final balance = store.todayBalance;
     final lowStock = _lowStockProducts(store);
     final screenWidth = MediaQuery.of(context).size.width;
     final moduleColumnCount = _moduleColumnCount(screenWidth);
@@ -82,10 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Center(
             child: Text(
               displayName,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
           ),
           IconButton(
@@ -109,7 +102,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               );
-              
+
               if (confirmed == true) {
                 await authService.signOut();
               }
@@ -134,7 +127,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               gradient: AppTheme.primaryGradient,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
             ),
@@ -147,7 +140,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Vendas: $salesCount | Fiados: $fiadosCount | Saldo: ${AppFormatters.currency(balance)}',
+                  'Vendas: $salesCount | Fiados: $fiadosCount | Total vendido: ${AppFormatters.currency(salesTotal)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -237,11 +230,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onTap: () => widget.onOpenModule(DashboardModule.fiados),
               ),
               ModuleTile(
-                icon: Icons.savings_outlined,
-                title: 'Financeiro',
-                onTap: () => widget.onOpenModule(DashboardModule.financeiro),
-              ),
-              ModuleTile(
                 icon: Icons.bar_chart_outlined,
                 title: 'Relatorios',
                 onTap: () => widget.onOpenModule(DashboardModule.relatorios),
@@ -285,7 +273,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
             },
             icon: const Icon(Icons.bolt, color: Colors.amber),
-            label: const Text('Venda Rápida', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: const Text(
+              'Venda Rápida',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             backgroundColor: Theme.of(context).colorScheme.primaryContainer,
             foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
@@ -302,9 +293,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   salesTotal: salesTotal,
                   fiadosCount: fiadosCount,
                   fiadosOpenTotal: fiadosOpen,
-                  revenue: revenue,
-                  expense: expense,
-                  balance: balance,
                   onActionSelected: (module) {
                     Navigator.of(context).pop();
                     widget.onOpenModule(module);

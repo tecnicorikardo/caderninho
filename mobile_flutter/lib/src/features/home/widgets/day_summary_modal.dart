@@ -11,9 +11,6 @@ class DaySummaryModal extends StatelessWidget {
     required this.salesTotal,
     required this.fiadosCount,
     required this.fiadosOpenTotal,
-    required this.revenue,
-    required this.expense,
-    required this.balance,
     required this.onActionSelected,
   });
 
@@ -21,9 +18,6 @@ class DaySummaryModal extends StatelessWidget {
   final double salesTotal;
   final int fiadosCount;
   final double fiadosOpenTotal;
-  final double revenue;
-  final double expense;
-  final double balance;
   final ValueChanged<DashboardModule> onActionSelected;
 
   bool _isSameDay(DateTime a, DateTime b) {
@@ -40,9 +34,6 @@ class DaySummaryModal extends StatelessWidget {
         .toList();
     final todaysDebts = store.debts
         .where((debt) => _isSameDay(debt.createdAt, now))
-        .toList();
-    final todaysEntries = store.financialEntries
-        .where((entry) => _isSameDay(entry.createdAt, now))
         .toList();
     final lowStockProducts = store.products.where((p) => p.stock <= 5).toList()
       ..sort((a, b) => a.stock.compareTo(b.stock));
@@ -83,12 +74,6 @@ class DaySummaryModal extends StatelessWidget {
                     title: 'Fiados do dia',
                     subtitle:
                         'Qtd: $fiadosCount | Em aberto: ${AppFormatters.currency(fiadosOpenTotal)}',
-                  ),
-                  const SizedBox(height: 10),
-                  _MetricCard(
-                    title: 'Financeiro do dia',
-                    subtitle:
-                        'Receitas: ${AppFormatters.currency(revenue)} | Despesas: ${AppFormatters.currency(expense)} | Saldo: ${AppFormatters.currency(balance)}',
                   ),
                   const SizedBox(height: 14),
                   _SectionCard(
@@ -170,36 +155,6 @@ class DaySummaryModal extends StatelessWidget {
                             ],
                           ),
                   ),
-                  const SizedBox(height: 10),
-                  _SectionCard(
-                    title: 'Lancamentos financeiros de hoje',
-                    child: todaysEntries.isEmpty
-                        ? const Text('Nenhum lancamento financeiro hoje.')
-                        : Column(
-                            children: todaysEntries.take(10).map((entry) {
-                              final positive =
-                                  entry.type == FinancialEntryType.revenue;
-                              return ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                leading: Icon(
-                                  positive
-                                      ? Icons.trending_up
-                                      : Icons.trending_down,
-                                  color: positive ? Colors.green : Colors.red,
-                                  size: 22,
-                                ),
-                                title: Text(entry.description),
-                                subtitle: Text(
-                                  '${entry.origin} | ${AppFormatters.time(entry.createdAt)}',
-                                ),
-                                trailing: Text(
-                                  AppFormatters.currency(entry.amount),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                  ),
                   const SizedBox(height: 14),
                   const Text('Atalhos rapidos'),
                   const SizedBox(height: 8),
@@ -224,9 +179,9 @@ class DaySummaryModal extends StatelessWidget {
                         onTap: () => onActionSelected(DashboardModule.produtos),
                       ),
                       _QuickActionChip(
-                        label: 'Ir para financeiro',
+                        label: 'Ver relatorios',
                         onTap: () =>
-                            onActionSelected(DashboardModule.financeiro),
+                            onActionSelected(DashboardModule.relatorios),
                       ),
                     ],
                   ),

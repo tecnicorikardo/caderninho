@@ -623,9 +623,9 @@ class AppStore extends ChangeNotifier {
       'updatedAt': now,
     });
 
-    final productsSnap = await _col('products')
-        .where('brandId', isEqualTo: brandId)
-        .get();
+    final productsSnap = await _col(
+      'products',
+    ).where('brandId', isEqualTo: brandId).get();
     if (productsSnap.docs.isEmpty) return;
 
     final batch = _db.batch();
@@ -673,7 +673,7 @@ class AppStore extends ChangeNotifier {
     String? imageUrl,
     String? thumbnailUrl,
     String? notes,
-    bool registerStockExpense = true,
+    bool registerStockExpense = false,
   }) async {
     final now = DateTime.now();
     final batch = _db.batch();
@@ -754,7 +754,7 @@ class AppStore extends ChangeNotifier {
     required String notes,
     String? stockChangeReason,
     bool registerStockMovement = true,
-    bool registerStockFinancialEntry = true,
+    bool registerStockFinancialEntry = false,
   }) async {
     final productRef = _col('products').doc(productId);
     final now = DateTime.now();
@@ -899,19 +899,6 @@ class AppStore extends ChangeNotifier {
           'reason': reason,
           'createdAt': now,
         });
-
-        if (current.cost > 0) {
-          final entryRef = _col('financial_entries').doc();
-          txn.set(entryRef, {
-            'type': 'expense',
-            'description':
-                'Baixa ao excluir produto: ${current.name} | Motivo: $reason',
-            'category': 'Estoque',
-            'amount': current.cost * current.stock,
-            'origin': 'stock_delete',
-            'createdAt': now,
-          });
-        }
       }
 
       txn.delete(productRef);
@@ -928,7 +915,8 @@ class AppStore extends ChangeNotifier {
     LoanInterestUnit loanInterestUnit = LoanInterestUnit.month,
   }) async {
     final now = DateTime.now();
-    final dayKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dayKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final batch = _db.batch();
     final saleRef = _col('sales').doc();
     final trimmedCustomerName = (customerName ?? '').trim();
@@ -1103,10 +1091,7 @@ class AppStore extends ChangeNotifier {
           commissionAmount +=
               (unitPrice * take) * (lot.commissionPercent / 100);
 
-          txn.update(ref, {
-            'stock': lot.stock - take,
-            'updatedAt': now,
-          });
+          txn.update(ref, {'stock': lot.stock - take, 'updatedAt': now});
 
           lotBreakdown.add({
             'productId': lot.id,
@@ -1136,7 +1121,8 @@ class AppStore extends ChangeNotifier {
             ? 0.0
             : (discountAmount / originalTotal) * 100;
         final desc = 'Venda de $productName';
-        final dayKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+        final dayKey =
+            '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
         final saleRef = _col('sales').doc();
         DocumentReference<Map<String, dynamic>>? debtRef;
         DocumentReference<Map<String, dynamic>>? loanRef;
@@ -1542,11 +1528,11 @@ class AppStore extends ChangeNotifier {
       // Primeiro, buscar informações necessárias FORA da transação
       final saleRef = _col('sales').doc(sale.id);
       final saleSnap = await saleRef.get();
-      
+
       if (!saleSnap.exists) {
         return 'Venda nao encontrada.';
       }
-      
+
       final data = saleSnap.data() ?? <String, dynamic>{};
       final mode = (data['mode'] ?? 'free').toString();
       final paymentMethod = (data['paymentMethod'] ?? '').toString();
@@ -1558,7 +1544,6 @@ class AppStore extends ChangeNotifier {
       final lotBreakdownRaw = data['lotBreakdown'];
       final saleDescription = (data['description'] ?? '').toString();
       final saleTotal = _toDouble(data['total']);
-      final customerName = (data['customerName'] ?? '').toString();
 
       // Validações antes da transação
       if (mode == 'product' && lotBreakdownRaw is List) {
@@ -1571,7 +1556,9 @@ class AppStore extends ChangeNotifier {
             return 'Nao foi possivel cancelar: lote original nao encontrado.';
           }
         }
-      } else if (mode == 'product' && productId != null && productId.isNotEmpty) {
+      } else if (mode == 'product' &&
+          productId != null &&
+          productId.isNotEmpty) {
         final productSnap = await _col('products').doc(productId).get();
         if (!productSnap.exists) {
           return 'Nao foi possivel cancelar: produto original nao encontrado.';
@@ -1590,7 +1577,9 @@ class AppStore extends ChangeNotifier {
         }
       }
 
-      if (paymentMethod == 'emprestimo' && loanId != null && loanId.isNotEmpty) {
+      if (paymentMethod == 'emprestimo' &&
+          loanId != null &&
+          loanId.isNotEmpty) {
         final loanSnap = await _col('loans').doc(loanId).get();
         if (loanSnap.exists) {
           final loanData = loanSnap.data() ?? <String, dynamic>{};
@@ -1610,7 +1599,9 @@ class AppStore extends ChangeNotifier {
           if (rawLot is! Map) continue;
           final lotProductId = rawLot['productId']?.toString();
           final lotQuantity = _toDouble(rawLot['quantity']);
-          if (lotProductId == null || lotProductId.isEmpty || lotQuantity <= 0) {
+          if (lotProductId == null ||
+              lotProductId.isEmpty ||
+              lotQuantity <= 0) {
             continue;
           }
           final productRef = _col('products').doc(lotProductId);
@@ -1621,7 +1612,10 @@ class AppStore extends ChangeNotifier {
             batch.update(productRef, {'stock': currentStock + lotQuantity});
           }
         }
-      } else if (mode == 'product' && productId != null && productId.isNotEmpty && quantity > 0) {
+      } else if (mode == 'product' &&
+          productId != null &&
+          productId.isNotEmpty &&
+          quantity > 0) {
         final productRef = _col('products').doc(productId);
         final productSnap = await productRef.get();
         if (productSnap.exists) {
@@ -1637,17 +1631,22 @@ class AppStore extends ChangeNotifier {
       }
 
       // Deletar empréstimo se necessário
-      if (paymentMethod == 'emprestimo' && loanId != null && loanId.isNotEmpty) {
+      if (paymentMethod == 'emprestimo' &&
+          loanId != null &&
+          loanId.isNotEmpty) {
         batch.delete(_col('loans').doc(loanId));
       }
 
       // Deletar entrada financeira se necessário
-      if (paymentMethod != 'fiado' && financialEntryId != null && financialEntryId.isNotEmpty) {
+      if (paymentMethod != 'fiado' &&
+          financialEntryId != null &&
+          financialEntryId.isNotEmpty) {
         batch.delete(_col('financial_entries').doc(financialEntryId));
       }
 
       // Se não tem financialEntryId, criar estorno
-      if (paymentMethod != 'fiado' && (financialEntryId == null || financialEntryId.isEmpty)) {
+      if (paymentMethod != 'fiado' &&
+          (financialEntryId == null || financialEntryId.isEmpty)) {
         final reversalRef = _col('financial_entries').doc();
         batch.set(reversalRef, {
           'type': 'expense',
@@ -1843,7 +1842,8 @@ class AppStore extends ChangeNotifier {
       final brandName = (sale.brandName ?? '').trim();
       if (brandName.isEmpty) continue;
       brandRevenue[brandName] = (brandRevenue[brandName] ?? 0) + sale.total;
-      final commissionValue = sale.commissionAmount ??
+      final commissionValue =
+          sale.commissionAmount ??
           (sale.commissionPercent == null
               ? 0
               : sale.total * (sale.commissionPercent! / 100));
@@ -1972,7 +1972,10 @@ class AppStore extends ChangeNotifier {
 
     final pausedValue = productsWithStock
         .where((product) => pausedIds.contains(product.id))
-        .fold<double>(0, (sum, product) => sum + (product.cost * product.stock));
+        .fold<double>(
+          0,
+          (sum, product) => sum + (product.cost * product.stock),
+        );
 
     return {
       'stagnantProducts': stagnant,
@@ -2524,7 +2527,8 @@ class ProductRecord {
 
   double get automaticDiscountAmount {
     if (!hasAutomaticDiscount) return 0;
-    return salePrice * (_normalizeDiscountPercent(automaticDiscountPercent) / 100);
+    return salePrice *
+        (_normalizeDiscountPercent(automaticDiscountPercent) / 100);
   }
 
   bool get hasAutomaticDiscount {
@@ -2869,7 +2873,3 @@ String _normalizeSlug(String value) {
       .replaceAll(RegExp(r'^-+|-+$'), '');
   return slug;
 }
-
-
-
-
