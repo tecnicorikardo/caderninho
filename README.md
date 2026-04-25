@@ -1,19 +1,27 @@
-# bloquinhodigital (reset)
+# bloquinhodigital
 
-Este repositório foi limpo para recomeçar do zero, **mantendo o mesmo projeto Firebase** (`bloquinhodigital`) e as configurações essenciais:
+PWA (React + TypeScript + Tailwind) hospedado no Firebase Hosting, com Firebase Auth (e-mail/senha) e Firestore.
 
-- `.firebaserc`
-- `firebase.json`
-- `firestore.rules` / `firestore.indexes.json`
-- `storage.rules`
+## Estrutura
 
-## Hosting (placeholder)
+- `web/`: app PWA (Vite)
+- `functions/`: Cloud Functions (placeholder, MVP)
+- `firestore.rules` / `firestore.indexes.json`: regras e índices do Firestore
+- `tools/firebase-wipe/`: utilitário opcional para apagar Auth/Firestore (irreversível)
 
-O `firebase.json` aponta o Hosting para `public/`. Existe um `public/index.html` apenas para manter deploy/testes básicos funcionando.
+## Rodar localmente
 
-## Reset de dados (Firestore/Auth)
+1) Configure as variáveis do Firebase:
 
-Para **apagar todos os dados do Firestore** e **todos os usuários do Firebase Auth**, use o utilitário em `tools/firebase-wipe/`.
+- `web/.env.local` (copie de `web/.env.example`)
 
-⚠️ Isso é irreversível. Use com cuidado e confirme o `projectId`.
+2) Instale e rode:
 
+- `cd web`
+- `npm install`
+- `npm run dev`
+
+## Deploy (manual)
+
+- `cd web && npm run build`
+- `firebase deploy --only hosting`

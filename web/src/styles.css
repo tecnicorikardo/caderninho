@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-color: #111827;
+  --text-main: #111827;
+}
+
+html,
+body {
+  height: 100%;
+}
+

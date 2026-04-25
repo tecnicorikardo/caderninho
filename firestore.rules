@@ -5,116 +5,34 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(storeId) {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/stores/$(storeId)) &&
-        get(/databases/$(database)/documents/stores/$(storeId)).data.ownerUid == request.auth.uid;
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
     }
 
-    function isStoreMember(storeId) {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/stores/$(storeId)/members/$(request.auth.uid));
+    // Protege campos "server-controlled" contra update via front-end.
+    function unchanged(field) {
+      return !(field in request.resource.data) ||
+        (resource != null && request.resource.data[field] == resource.data[field]);
     }
 
-    match /stores/{storeId} {
+    // Catálogo global (futuro): somente leitura.
+    match /catalogs/{document=**} {
       allow read: if true;
-      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if isOwner(storeId);
+      allow write: if false;
     }
 
-    match /stores/{storeId}/settings/{docId} {
-      allow read: if true;
-      allow write: if isOwner(storeId);
-    }
-
-    match /stores/{storeId}/members/{uid} {
-      allow read: if isOwner(storeId) || (signedIn() && request.auth.uid == uid);
-      allow write: if isOwner(storeId);
-    }
-
+    // Dados do usuário: todas as coleções ficam sob /users/{uid}/...
     match /users/{uid} {
-      allow read: if resource.data.is_active == true || (signedIn() && request.auth.uid == uid);
-      allow update: if signedIn() && request.auth.uid == uid;
-      allow create: if signedIn() && request.auth.uid == uid;
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && !('growthLevel' in request.resource.data);
+      allow update: if isOwner(uid) && unchanged('growthLevel');
       allow delete: if false;
-    }
 
-    match /users/{uid}/products/{productId} {
-      allow read: if resource.data.showInWeb == true || (signedIn() && request.auth.uid == uid);
-      allow create, update, delete: if signedIn() && request.auth.uid == uid;
-    }
-
-    match /users/{uid}/fcm_tokens/{tokenId} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
-    }
-
-    // Subscription - apenas o próprio usuário pode ler, apenas Functions podem escrever
-    match /users/{uid}/subscription/{docId} {
-      allow read: if signedIn() && request.auth.uid == uid;
-      allow write: if false; // Apenas Firebase Functions podem escrever
-    }
-
-    // Transactions - apenas o próprio usuário pode ler, apenas Functions podem escrever
-    match /users/{uid}/transactions/{docId} {
-      allow read: if signedIn() && request.auth.uid == uid;
-      allow write: if false; // Apenas Firebase Functions podem escrever
-    }
-
-    match /users/{uid}/{collectionId}/{docId} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
-    }
-
-    match /products/{productId} {
-      allow read: if true;
-      allow create: if isOwner(request.resource.data.storeId) || isStoreMember(request.resource.data.storeId);
-      allow update, delete: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-    }
-
-    match /orders/{orderId} {
-      allow create: if true;
-      allow read: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-      allow update, delete: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-    }
-
-    match /customers/{customerId} {
-      allow read: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-      allow create: if isOwner(request.resource.data.storeId) || isStoreMember(request.resource.data.storeId);
-      allow update, delete: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-    }
-
-    match /inventory_movements/{movementId} {
-      allow read: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-      allow create: if isOwner(request.resource.data.storeId) || isStoreMember(request.resource.data.storeId);
-      allow update, delete: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-    }
-
-    match /financial_entries/{entryId} {
-      allow read: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-      allow create: if isOwner(request.resource.data.storeId) || isStoreMember(request.resource.data.storeId);
-      allow update, delete: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-    }
-
-    match /payments/{paymentId} {
-      allow read: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-      allow create: if isOwner(request.resource.data.storeId) || isStoreMember(request.resource.data.storeId);
-      allow update, delete: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-    }
-
-    match /notification_events/{eventId} {
-      allow read: if isOwner(resource.data.storeId) || isStoreMember(resource.data.storeId);
-      allow create: if
-        isOwner(request.resource.data.storeId) ||
-        isStoreMember(request.resource.data.storeId) ||
-        (
-          request.resource.data.type == 'order_created' &&
-          exists(/databases/$(database)/documents/stores/$(request.resource.data.storeId))
-        );
-      allow update, delete: if false;
-    }
-
-    // Webhooks - apenas Firebase Functions podem acessar (para auditoria)
-    match /webhooks/{docId} {
-      allow read, write: if false; // Apenas Firebase Functions
+      // Subcoleções do usuário (customers, products, inventory, sales, receivables, payments, ...)
+      match /{collectionId}/{docId} {
+        allow read, write: if isOwner(uid);
+      }
     }
   }
 }
+
