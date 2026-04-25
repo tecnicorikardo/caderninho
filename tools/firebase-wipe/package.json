@@ -1,0 +1,12 @@
+{
+  "name": "firebase-wipe",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "wipe": "node wipe.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.1"
+  }
+}
+
