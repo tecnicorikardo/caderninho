@@ -1,0 +1,15 @@
+{
+  "name": "bloquinho-e2e",
+  "version": "1.0.0",
+  "description": "Testes E2E do Bloquinho Digital com Playwright",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "dotenv": "^17.4.2"
+  }
+}

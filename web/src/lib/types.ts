@@ -5,12 +5,19 @@ export type ServerTimestamp = FieldValue;
 export type GrowthLevel = "Semente" | "Bronze" | "Prata" | "Ouro" | "Diamante";
 export type Brand = "Natura" | "Avon" | "Casa & Estilo" | "Outra";
 
+export type BrandMargin = {
+  brand: string;
+  marginPercent: number;
+};
+
 export type UserProfile = {
   createdAt: Timestamp | ServerTimestamp;
   updatedAt: Timestamp | ServerTimestamp;
   onboardedAt?: Timestamp | ServerTimestamp | null;
   // growthLevel é controlado pelo servidor (regras impedem update pelo front-end).
   growthLevel?: GrowthLevel;
+  // Margens configuráveis por marca
+  brandMargins?: BrandMargin[];
 };
 
 export type Customer = {
@@ -53,6 +60,7 @@ export type SaleItem = {
   inventoryId?: string | null;
   productId: string;
   productName: string;
+  brand: string;           // obrigatório — necessário para agrupar comissão por marca
   quantity: number;
   unitPriceCents: number;
   unitCostCents: number;

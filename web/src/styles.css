@@ -3,12 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --brand-color: #111827;
+  --brand-color: #0f766e;
+  --brand-dark: #0d5c56;
+  --brand-light: #ccfbf1;
   --text-main: #111827;
 }
 
-html,
-body {
+html, body {
   height: 100%;
+  background-color: #f8fafc;
 }
 
