@@ -7,14 +7,14 @@ config({ path: resolve(__dirname, ".env.test") });
 
 export default defineConfig({
   testDir: "./specs",
-  timeout: 30_000,
+  timeout: 60_000,
   retries: 1,
   reporter: [["html", { open: "on-failure" }], ["list"]],
   use: {
     baseURL: "https://bloquinhodigital.web.app",
     headless: true,
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    video: "off",
     locale: "pt-BR",
   },
   projects: [

@@ -251,7 +251,7 @@ export default function SalesPage({ user }: { user: User }) {
         {/* Catálogo */}
         <div className="lg:col-span-2 space-y-3">
           <input
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+            className="inp"
             placeholder="Buscar produto…"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -313,9 +313,7 @@ export default function SalesPage({ user }: { user: User }) {
               </label>
               <input
                 ref={customerInputRef}
-                className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${
-                  customerId ? "border-teal-400 bg-teal-50" : "border-slate-200"
-                }`}
+                className={`inp ${customerId ? "border-teal-500 bg-teal-50" : ""}`}
                 value={customerSearch}
                 onChange={e => handleCustomerInput(e.target.value)}
                 onFocus={() => customerSearch.length >= 2 && setShowSuggestions(true)}
@@ -387,9 +385,9 @@ export default function SalesPage({ user }: { user: User }) {
 
             {/* Pagamento */}
             <div>
-              <label className="text-xs font-medium text-gray-600">Forma de pagamento</label>
+              <label className="inp-label">Forma de pagamento</label>
               <select
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm bg-white"
+                className="inp-select"
                 value={payment}
                 onChange={e => { setPayment(e.target.value as PaymentType); setDownPayment(""); }}
               >
@@ -403,7 +401,7 @@ export default function SalesPage({ user }: { user: User }) {
             {payment === "fiado" && (
               <div className="space-y-2">
                 <div>
-                  <label className="text-xs font-medium text-gray-600">
+                  <label className="inp-label">
                     Entrada recebida agora (R$)
                     <span className="text-gray-400 font-normal ml-1">— opcional</span>
                   </label>
@@ -411,7 +409,7 @@ export default function SalesPage({ user }: { user: User }) {
                     type="text"
                     inputMode="decimal"
                     placeholder="Ex: 50,00"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    className="inp"
                     value={downPayment}
                     onChange={e => setDownPayment(e.target.value)}
                   />
@@ -437,7 +435,7 @@ export default function SalesPage({ user }: { user: User }) {
                 </div>
                 {/* Entrada */}
                 <div>
-                  <label className="text-xs font-medium text-gray-600">
+                  <label className="inp-label">
                     Entrada recebida agora (R$)
                     <span className="text-gray-400 font-normal ml-1">— opcional</span>
                   </label>
@@ -445,7 +443,7 @@ export default function SalesPage({ user }: { user: User }) {
                     type="text"
                     inputMode="decimal"
                     placeholder="Ex: 50,00"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    className="inp"
                     value={downPayment}
                     onChange={e => setDownPayment(e.target.value)}
                   />
@@ -457,9 +455,9 @@ export default function SalesPage({ user }: { user: User }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs font-medium text-gray-600">Nº de parcelas</label>
+                    <label className="inp-label">Nº de parcelas</label>
                     <select
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm bg-white"
+                      className="inp-select"
                       value={numInstallments}
                       onChange={e => setNumInstallments(Number(e.target.value))}
                     >
@@ -469,9 +467,9 @@ export default function SalesPage({ user }: { user: User }) {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-gray-600">1ª parcela em</label>
+                    <label className="inp-label">1ª parcela em</label>
                     <select
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm bg-white"
+                      className="inp-select"
                       value={firstDueDays}
                       onChange={e => setFirstDueDays(Number(e.target.value))}
                     >

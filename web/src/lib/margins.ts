@@ -1,9 +1,9 @@
 import type { Brand, BrandMargin, GrowthLevel } from "@/lib/types";
 
 const defaultMarginTable: Record<string, Record<GrowthLevel, number>> = {
-  Natura: { Semente: 20, Bronze: 30, Prata: 30, Ouro: 32, Diamante: 35 },
-  Avon: { Semente: 20, Bronze: 30, Prata: 35, Ouro: 38, Diamante: 40 },
-  "Casa & Estilo": { Semente: 15, Bronze: 15, Prata: 15, Ouro: 15, Diamante: 20 },
+  Natura: { Semente: 20, Ouro: 32, Diamante: 35 },
+  Avon: { Semente: 20, Ouro: 38, Diamante: 40 },
+  "Casa & Estilo": { Semente: 15, Ouro: 15, Diamante: 20 },
 };
 
 export function getMarginPercent(brand: Brand | string, level: GrowthLevel): number {

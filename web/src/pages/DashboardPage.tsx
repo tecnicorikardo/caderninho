@@ -108,16 +108,9 @@ export default function DashboardPage({ user }: { user: User }) {
       ) : (
         <div className="space-y-6">
 
-          {/* Nível e mês */}
+          {/* Mês atual */}
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500 capitalize">{monthName}</div>
-            <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-xl px-3 py-1.5">
-              <span className="text-xs text-teal-600">Nível:</span>
-              <span className="text-sm font-bold text-teal-700">{stats?.userLevel}</span>
-              <span className="text-xs text-teal-500">
-                ({getMarginPercent("Natura", stats?.userLevel ?? "Semente")}% Natura)
-              </span>
-            </div>
+            <div className="text-sm font-semibold text-gray-500 capitalize">{monthName}</div>
           </div>
 
           {/* Cards principais */}
