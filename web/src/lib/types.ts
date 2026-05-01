@@ -2,7 +2,7 @@ import type { Timestamp, FieldValue } from "firebase/firestore";
 
 export type ServerTimestamp = FieldValue;
 
-export type GrowthLevel = "Semente" | "Bronze" | "Prata" | "Ouro" | "Diamante";
+export type GrowthLevel = "Semente" | "Ouro" | "Diamante";
 export type Brand = "Natura" | "Avon" | "Casa & Estilo" | "Outra";
 
 export type BrandMargin = {
@@ -50,6 +50,7 @@ export type InventoryItem = {
   costPriceCents: number;
   sellingPriceCents: number;
   expiryDate: Timestamp;
+  imageUrl?: string | null;   // Base64 da foto do produto (opcional)
   createdAt: Timestamp | ServerTimestamp;
   updatedAt: Timestamp | ServerTimestamp;
 };

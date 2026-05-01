@@ -347,9 +347,9 @@ export default function CommissionPage({ user }: { user: User }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-gray-600">Marca</label>
+              <label className="inp-label">Marca</label>
               <select
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white"
+                className="inp-select"
                 value={activeBrand}
                 onChange={e => { setCalcBrand(e.target.value); setCalcSelling(""); setCalcMode("fromCost"); }}
               >
@@ -358,20 +358,20 @@ export default function CommissionPage({ user }: { user: User }) {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-gray-600">Preço de custo (R$)</label>
+              <label className="inp-label">Preço de custo (R$)</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 placeholder="Ex: 25,00"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                className="inp"
                 value={calcCost}
                 onChange={e => setCalcCost(e.target.value)}
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="text-xs font-medium text-gray-600">
+              <label className="inp-label">
                 Preço de venda (R$)
                 <span className="text-gray-400 font-normal ml-1">â€” opcional, deixe vazio para usar o sugerido</span>
               </label>
@@ -380,7 +380,7 @@ export default function CommissionPage({ user }: { user: User }) {
                 step="0.01"
                 min="0"
                 placeholder="Deixe vazio para calcular automaticamente"
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                className="inp"
                 value={calcSelling}
                 onChange={e => {
                   setCalcSelling(e.target.value);

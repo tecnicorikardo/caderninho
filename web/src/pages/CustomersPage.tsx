@@ -23,6 +23,12 @@ export default function CustomersPage({ user }: { user: User }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
 
+  // Filtros rápidos
+  type CustomerFilter = "all" | "withBalance" | "noBalance";
+  type CustomerSort = "recent" | "az" | "balance";
+  const [activeFilter, setActiveFilter] = useState<CustomerFilter>("all");
+  const [activeSort, setActiveSort] = useState<CustomerSort>("recent");
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -66,21 +72,35 @@ export default function CustomersPage({ user }: { user: User }) {
     }
   }
 
-  const filtered = useMemo(() =>
-    rows.filter(c =>
+  const filtered = useMemo(() => {
+    let result = rows.filter(c =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.phone.includes(search) ||
       (c.email ?? "").toLowerCase().includes(search.toLowerCase())
-    ), [rows, search]);
+    );
+
+    // Filtro por saldo
+    if (activeFilter === "withBalance") result = result.filter(c => (c.balanceCents ?? 0) > 0);
+    if (activeFilter === "noBalance")   result = result.filter(c => (c.balanceCents ?? 0) === 0);
+
+    // Ordenação
+    if (activeSort === "az")      result = [...result].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    if (activeSort === "balance") result = [...result].sort((a, b) => (b.balanceCents ?? 0) - (a.balanceCents ?? 0));
+    // "recent" já vem ordenado do Firestore (createdAt desc)
+
+    return result;
+  }, [rows, search, activeFilter, activeSort]);
+
+  const withBalanceCount = rows.filter(c => (c.balanceCents ?? 0) > 0).length;
 
   return (
     <DashboardLayout title="Clientes">
-      <div className="space-y-4 animate-fade-in">
+      <div className="space-y-4">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row gap-3">
           <input
-            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-            placeholder="Buscar por nome, telefone ou e-mailâ€¦"
+            className="inp flex-1"
+            placeholder="Buscar por nome, telefone ou e-mail…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -92,29 +112,99 @@ export default function CustomersPage({ user }: { user: User }) {
           </button>
         </div>
 
+        {/* Filtros rápidos */}
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Filtro por saldo */}
+          <button
+            onClick={() => setActiveFilter("all")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+              activeFilter === "all"
+                ? "bg-teal-600 text-white border-teal-600"
+                : "bg-white text-gray-600 border-slate-200 hover:border-teal-300 hover:text-teal-700"
+            }`}
+          >
+            Todos ({rows.length})
+          </button>
+          <button
+            onClick={() => setActiveFilter("withBalance")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+              activeFilter === "withBalance"
+                ? "bg-orange-500 text-white border-orange-500"
+                : "bg-white text-gray-600 border-slate-200 hover:border-orange-300 hover:text-orange-600"
+            }`}
+          >
+            💳 Com saldo ({withBalanceCount})
+          </button>
+          <button
+            onClick={() => setActiveFilter("noBalance")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+              activeFilter === "noBalance"
+                ? "bg-green-600 text-white border-green-600"
+                : "bg-white text-gray-600 border-slate-200 hover:border-green-300 hover:text-green-600"
+            }`}
+          >
+            ✅ Quitados
+          </button>
+
+          {/* Separador */}
+          <span className="w-px h-5 bg-slate-200 mx-1" />
+
+          {/* Ordenação */}
+          <button
+            onClick={() => setActiveSort("recent")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+              activeSort === "recent"
+                ? "bg-slate-700 text-white border-slate-700"
+                : "bg-white text-gray-600 border-slate-200 hover:border-slate-400"
+            }`}
+          >
+            Recentes
+          </button>
+          <button
+            onClick={() => setActiveSort("az")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+              activeSort === "az"
+                ? "bg-slate-700 text-white border-slate-700"
+                : "bg-white text-gray-600 border-slate-200 hover:border-slate-400"
+            }`}
+          >
+            A–Z
+          </button>
+          <button
+            onClick={() => setActiveSort("balance")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+              activeSort === "balance"
+                ? "bg-slate-700 text-white border-slate-700"
+                : "bg-white text-gray-600 border-slate-200 hover:border-slate-400"
+            }`}
+          >
+            Maior saldo
+          </button>
+        </div>
+
         {/* Formulário de cadastro */}
         {showForm && (
           <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
             <h2 className="text-base font-semibold mb-4">Novo cliente</h2>
             <form onSubmit={handleSave} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-600">Nome *</label>
-                <input className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" value={form.name}
+                <label className="inp-label">Nome *</label>
+                <input className="inp" placeholder="Nome completo" value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">Telefone / WhatsApp *</label>
-                <input className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" value={form.phone}
+                <label className="inp-label">Telefone / WhatsApp *</label>
+                <input className="inp" placeholder="(11) 99999-9999" value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} required />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">E-mail</label>
-                <input type="email" className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" value={form.email}
+                <label className="inp-label">E-mail</label>
+                <input type="email" className="inp" placeholder="Opcional" value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">Endereço</label>
-                <input className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" value={form.address}
+                <label className="inp-label">Endereço</label>
+                <input className="inp" placeholder="Opcional" value={form.address}
                   onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
               </div>
               {error && <p className="sm:col-span-2 text-xs text-red-600">{error}</p>}
@@ -123,7 +213,7 @@ export default function CustomersPage({ user }: { user: User }) {
                   className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
                 <button type="submit" disabled={saving}
                   className="rounded-lg bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 text-sm font-medium disabled:opacity-60">
-                  {saving ? "Salvandoâ€¦" : "Salvar"}
+                  {saving ? "Salvando…" : "Salvar"}
                 </button>
               </div>
             </form>
@@ -132,7 +222,7 @@ export default function CustomersPage({ user }: { user: User }) {
 
         {/* Lista */}
         {loading ? (
-          <div className="text-sm text-gray-500 py-8 text-center">Carregandoâ€¦</div>
+          <div className="text-sm text-gray-500 py-8 text-center">Carregando…</div>
         ) : error && rows.length === 0 ? (
           <div className="text-sm text-red-600">{error}</div>
         ) : filtered.length === 0 ? (
@@ -181,5 +271,4 @@ export default function CustomersPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
-
 

@@ -265,7 +265,7 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
                   inputMode="decimal"
                   placeholder="Ex: 50,00"
                   autoFocus
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                  className="inp"
                   value={partialAmount}
                   onChange={e => { setPartialAmount(e.target.value); setErr(""); }}
                 />
@@ -295,7 +295,7 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
                       <div>
                         <label className="text-xs font-medium text-gray-600">Nº de parcelas</label>
                         <select
-                          className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm bg-white"
+                          className="inp-select"
                           value={reParcelNum}
                           onChange={e => setReParcelNum(Number(e.target.value))}
                         >
@@ -309,7 +309,7 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
                       <div>
                         <label className="text-xs font-medium text-gray-600">1ª parcela em</label>
                         <select
-                          className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm bg-white"
+                          className="inp-select"
                           value={reParcelFirstDays}
                           onChange={e => setReParcelFirstDays(Number(e.target.value))}
                         >
@@ -355,7 +355,7 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
                 <div>
                   <label className="text-xs font-medium text-gray-600">Nova data de vencimento</label>
                   <input type="date" min={new Date().toISOString().split("T")[0]}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    className="inp"
                     value={newDate} onChange={e => setNewDate(e.target.value)} />
                 </div>
               )}

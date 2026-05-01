@@ -183,7 +183,7 @@ export default function SettingsPage({ user }: { user: User }) {
                     step="1"
                     value={b.marginPercent}
                     onChange={e => updateMargin(i, e.target.value)}
-                    className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-center font-semibold text-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    className="w-16 rounded-lg border-2 border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-center font-semibold text-teal-700 focus:outline-none focus:border-teal-500"
                   />
                   <span className="text-sm text-gray-500 font-medium">%</span>
                 </div>
@@ -204,7 +204,7 @@ export default function SettingsPage({ user }: { user: User }) {
               value={newBrand}
               onChange={e => setNewBrand(e.target.value)}
               onKeyDown={e => e.key === "Enter" && addBrand()}
-              className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+              className="inp flex-1"
             />
             <div className="flex items-center gap-1">
               <input
@@ -216,7 +216,7 @@ export default function SettingsPage({ user }: { user: User }) {
                 value={newMargin}
                 onChange={e => setNewMargin(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && addBrand()}
-                className="w-16 rounded-xl border border-slate-200 px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-400"
+                className="w-16 rounded-xl border-2 border-slate-300 bg-slate-50 px-2 py-2.5 text-sm text-center focus:outline-none focus:border-teal-500"
               />
               <span className="text-sm text-gray-500">%</span>
             </div>
@@ -335,22 +335,22 @@ export default function SettingsPage({ user }: { user: User }) {
           <h2 className="text-base font-semibold text-gray-800 mb-4">Alterar Senha</h2>
           <form onSubmit={changePassword} className="space-y-3">
             <div>
-              <label className="text-xs font-medium text-gray-600">Senha atual</label>
+              <label className="inp-label">Senha atual</label>
               <input
                 type="password"
                 autoComplete="current-password"
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                className="inp"
                 value={currentPwd}
                 onChange={e => setCurrentPwd(e.target.value)}
                 required
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Nova senha (mín. 6 caracteres)</label>
+              <label className="inp-label">Nova senha (mín. 6 caracteres)</label>
               <input
                 type="password"
                 autoComplete="new-password"
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                className="inp"
                 value={newPwd}
                 onChange={e => setNewPwd(e.target.value)}
                 required

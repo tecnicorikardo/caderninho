@@ -53,7 +53,7 @@ export default function SalesPage({ user }: { user: User }) {
   const [firstDueDays, setFirstDueDays] = useState(30);
   const [downPayment, setDownPayment] = useState(""); // entrada em R$
 
-  // Cliente  -  sempre obrigatório
+  // Cliente — sempre obrigatório
   const [customerId, setCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerSuggestions, setCustomerSuggestions] = useState<CustomerRow[]>([]);
@@ -89,7 +89,7 @@ export default function SalesPage({ user }: { user: User }) {
       const salesSnap = await getDocs(salesQ);
       setRecentSales(salesSnap.docs.map(d => {
         const data = d.data();
-        const date = data.createdAt?.toDate?.()?.toLocaleDateString("pt-BR") ?? " - ";
+        const date = data.createdAt?.toDate?.()?.toLocaleDateString("pt-BR") ?? "—";
         return { id: d.id, total: data.totalCents ?? 0, date, items: (data.items ?? []).length };
       }));
     }
@@ -251,8 +251,8 @@ export default function SalesPage({ user }: { user: User }) {
         {/* Catálogo */}
         <div className="lg:col-span-2 space-y-3">
           <input
-            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-            placeholder="Buscar produto..."
+            className="inp"
+            placeholder="Buscar produto…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -274,9 +274,9 @@ export default function SalesPage({ user }: { user: User }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium text-gray-900 truncate">{inv.productName}</span>
                         <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{inv.brand}</span>
-                        {expiring && <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md">⚠  Vence em breve</span>}
+                        {expiring && <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md">⚠ Vence em breve</span>}
                       </div>
-                      <div className="text-xs text-gray-500">{inv.quantity} un  -  Sugerido: {formatMoney(suggested)}</div>
+                      <div className="text-xs text-gray-500">{inv.quantity} un • Sugerido: {formatMoney(suggested)}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-sm font-semibold text-teal-700">{formatMoney(inv.sellingPriceCents)}</div>
@@ -302,24 +302,22 @@ export default function SalesPage({ user }: { user: User }) {
           <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4 space-y-3">
             <h2 className="text-base font-semibold">Carrinho</h2>
 
-            {/* Cliente  -  sempre obrigatório */}
+            {/* Cliente — sempre obrigatório */}
             <div className="relative">
               <label className="text-xs font-medium text-gray-600 flex items-center gap-1">
                 Cliente *
                 {customerId
-                  ? <span className="text-teal-600">check selecionado</span>
+                  ? <span className="text-teal-600">✓ selecionado</span>
                   : <span className="text-red-400">obrigatório</span>
                 }
               </label>
               <input
                 ref={customerInputRef}
-                className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 ${
-                  customerId ? "border-teal-400 bg-teal-50" : "border-slate-200"
-                }`}
+                className={`inp ${customerId ? "border-teal-500 bg-teal-50" : ""}`}
                 value={customerSearch}
                 onChange={e => handleCustomerInput(e.target.value)}
                 onFocus={() => customerSearch.length >= 2 && setShowSuggestions(true)}
-                placeholder="Digite o nome do cliente..."
+                placeholder="Digite o nome do cliente…"
                 autoComplete="off"
               />
               {showSuggestions && customerSuggestions.length > 0 && (
@@ -356,14 +354,14 @@ export default function SalesPage({ user }: { user: User }) {
                   <div key={inv.id} className="flex items-center gap-2 text-sm">
                     <div className="flex-1 min-w-0">
                       <div className="truncate font-medium text-gray-800">{inv.productName}</div>
-                      <div className="text-xs text-gray-500">{inv.brand}  -  {formatMoney(inv.sellingPriceCents)} x {qty}</div>
+                      <div className="text-xs text-gray-500">{inv.brand} • {formatMoney(inv.sellingPriceCents)} × {qty}</div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => updateQty(inv.id, qty - 1)} className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-sm font-bold">-</button>
+                      <button onClick={() => updateQty(inv.id, qty - 1)} className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-sm font-bold">−</button>
                       <span className="w-6 text-center text-sm">{qty}</span>
                       <button onClick={() => updateQty(inv.id, qty + 1)} className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-sm font-bold">+</button>
                     </div>
-                    <button onClick={() => removeFromCart(inv.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">x</button>
+                    <button onClick={() => removeFromCart(inv.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
                   </div>
                 ))}
               </div>
@@ -387,9 +385,9 @@ export default function SalesPage({ user }: { user: User }) {
 
             {/* Pagamento */}
             <div>
-              <label className="text-xs font-medium text-gray-600">Forma de pagamento</label>
+              <label className="inp-label">Forma de pagamento</label>
               <select
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm bg-white"
+                className="inp-select"
                 value={payment}
                 onChange={e => { setPayment(e.target.value as PaymentType); setDownPayment(""); }}
               >
@@ -403,49 +401,49 @@ export default function SalesPage({ user }: { user: User }) {
             {payment === "fiado" && (
               <div className="space-y-2">
                 <div>
-                  <label className="text-xs font-medium text-gray-600">
+                  <label className="inp-label">
                     Entrada recebida agora (R$)
-                    <span className="text-gray-400 font-normal ml-1"> -  opcional</span>
+                    <span className="text-gray-400 font-normal ml-1">— opcional</span>
                   </label>
                   <input
                     type="text"
                     inputMode="decimal"
                     placeholder="Ex: 50,00"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    className="inp"
                     value={downPayment}
                     onChange={e => setDownPayment(e.target.value)}
                   />
                 </div>
                 <div className="rounded-xl bg-orange-50 border border-orange-100 px-3 py-2.5 text-xs text-orange-700 space-y-0.5">
                   {downPaymentCents > 0 && (
-                    <div>ok  Entrada: <strong>{formatMoney(downPaymentCents)}</strong></div>
+                    <div>✅ Entrada: <strong>{formatMoney(downPaymentCents)}</strong></div>
                   )}
                   <div>
-                    ðŸ’³ Restante a receber: <strong>{formatMoney(Math.max(0, totalCents - downPaymentCents))}</strong>
-                    {" "} -  vence em 30 dias
+                    💳 Restante a receber: <strong>{formatMoney(Math.max(0, totalCents - downPaymentCents))}</strong>
+                    {" "}— vence em 30 dias
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Parcelado  -  configuração + preview */}
+            {/* Parcelado — configuração + preview */}
             {payment === "installments" && (
               <div className="space-y-3">
                 {/* Aviso visual de que há configurações abaixo */}
                 <div className="rounded-xl bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700 font-medium">
-                  ðŸ“... Configure as parcelas abaixo antes de finalizar
+                  📅 Configure as parcelas abaixo antes de finalizar
                 </div>
                 {/* Entrada */}
                 <div>
-                  <label className="text-xs font-medium text-gray-600">
+                  <label className="inp-label">
                     Entrada recebida agora (R$)
-                    <span className="text-gray-400 font-normal ml-1"> -  opcional</span>
+                    <span className="text-gray-400 font-normal ml-1">— opcional</span>
                   </label>
                   <input
                     type="text"
                     inputMode="decimal"
                     placeholder="Ex: 50,00"
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    className="inp"
                     value={downPayment}
                     onChange={e => setDownPayment(e.target.value)}
                   />
@@ -457,21 +455,21 @@ export default function SalesPage({ user }: { user: User }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs font-medium text-gray-600">NÂº de parcelas</label>
+                    <label className="inp-label">Nº de parcelas</label>
                     <select
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm bg-white"
+                      className="inp-select"
                       value={numInstallments}
                       onChange={e => setNumInstallments(Number(e.target.value))}
                     >
                       {[2,3,4,5,6,8,10,12].map(n => (
-                        <option key={n} value={n}>{n}x de {totalCents > 0 ? formatMoney(Math.round(totalCents / n)) : " - "}</option>
+                        <option key={n} value={n}>{n}x de {totalCents > 0 ? formatMoney(Math.round(totalCents / n)) : "—"}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-gray-600">1a parcela em</label>
+                    <label className="inp-label">1ª parcela em</label>
                     <select
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm bg-white"
+                      className="inp-select"
                       value={firstDueDays}
                       onChange={e => setFirstDueDays(Number(e.target.value))}
                     >
@@ -485,11 +483,11 @@ export default function SalesPage({ user }: { user: User }) {
                 {/* Preview das parcelas */}
                 {installmentPlanPreview.length > 0 && (
                   <div className="rounded-xl bg-blue-50 border border-blue-100 p-3">
-                    <div className="text-xs font-medium text-blue-700 mb-2">ðŸ“... Parcelas geradas:</div>
+                    <div className="text-xs font-medium text-blue-700 mb-2">📅 Parcelas geradas:</div>
                     <div className="space-y-1">
                       {installmentPlanPreview.map((inst, i) => (
                         <div key={i} className="flex justify-between text-xs text-blue-700">
-                          <span>{i + 1}a parcela  -  {inst.dueDate.toLocaleDateString("pt-BR")}</span>
+                          <span>{i + 1}ª parcela — {inst.dueDate.toLocaleDateString("pt-BR")}</span>
                           <span className="font-semibold">{formatMoney(inst.amountCents)}</span>
                         </div>
                       ))}
@@ -510,7 +508,7 @@ export default function SalesPage({ user }: { user: User }) {
               disabled={saving || cart.length === 0}
               className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-3 text-sm font-semibold disabled:opacity-50 transition-colors"
             >
-              {saving ? "Registrando..." : "Finalizar Venda"}
+              {saving ? "Registrando…" : "Finalizar Venda"}
             </button>
           </div>
 
@@ -521,7 +519,7 @@ export default function SalesPage({ user }: { user: User }) {
               <div className="space-y-1">
                 {recentSales.map(s => (
                   <div key={s.id} className="flex justify-between text-xs text-gray-600 py-1 border-b border-slate-50 last:border-0">
-                    <span>{s.date}  -  {s.items} item{s.items !== 1 ? "s" : ""}</span>
+                    <span>{s.date} • {s.items} item{s.items !== 1 ? "s" : ""}</span>
                     <span className="font-semibold text-gray-800">{formatMoney(s.total)}</span>
                   </div>
                 ))}
@@ -533,4 +531,3 @@ export default function SalesPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
-
