@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import { collection, getDocs, query, orderBy, doc, serverTimestamp, runTransaction, updateDoc, Timestamp } from "firebase/firestore";
 import DashboardLayout from "@/ui/DashboardLayout";
@@ -487,7 +487,7 @@ export default function ReceivablesPage({ user }: { user: User }) {
 
   return (
     <DashboardLayout title="Recebimentos">
-      <div className="space-y-4">
+      <div className="space-y-4 animate-fade-in">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
             <div className="text-xs text-gray-500">Total a receber</div>
@@ -554,3 +554,4 @@ export default function ReceivablesPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+

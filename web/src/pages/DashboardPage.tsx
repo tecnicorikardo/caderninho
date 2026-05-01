@@ -106,14 +106,14 @@ export default function DashboardPage({ user }: { user: User }) {
       {loading ? (
         <div className="text-sm text-gray-400 py-12 text-center">Carregando…</div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in">
 
           {/* Nível e mês */}
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500 capitalize">{monthName}</div>
+            <div className="text-sm font-medium text-slate-500 capitalize">{monthName}</div>
             <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-xl px-3 py-1.5">
-              <span className="text-xs text-teal-600">Nível:</span>
-              <span className="text-sm font-bold text-teal-700">{stats?.userLevel}</span>
+              <span className="text-xs text-teal-600 font-medium">Nível:</span>
+              <span className="text-sm font-display font-bold text-teal-700">{stats?.userLevel}</span>
               <span className="text-xs text-teal-500">
                 ({getMarginPercent("Natura", stats?.userLevel ?? "Semente")}% Natura)
               </span>
@@ -121,13 +121,15 @@ export default function DashboardPage({ user }: { user: User }) {
           </div>
 
           {/* Cards principais */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger">
             <StatCard
               label="Faturamento do mês"
               value={formatMoney(stats?.monthRevenue ?? 0)}
               sub={`${stats?.monthSalesCount ?? 0} venda${stats?.monthSalesCount !== 1 ? "s" : ""}`}
               icon="💰"
-              color="bg-green-50 border-green-100"
+              color="bg-emerald-50 border-emerald-100"
+              iconBg="bg-emerald-100"
+              valueColor="text-emerald-700"
               link="/sales"
             />
             <StatCard
@@ -136,6 +138,8 @@ export default function DashboardPage({ user }: { user: User }) {
               sub={stats?.monthRevenue ? `${((stats.monthProfit / stats.monthRevenue) * 100).toFixed(1)}% margem` : "—"}
               icon="📈"
               color="bg-teal-50 border-teal-100"
+              iconBg="bg-teal-100"
+              valueColor="text-teal-700"
               link="/sales"
             />
             <StatCard
@@ -144,6 +148,8 @@ export default function DashboardPage({ user }: { user: User }) {
               sub={`${stats?.inventoryItems ?? 0} produtos`}
               icon="📦"
               color="bg-blue-50 border-blue-100"
+              iconBg="bg-blue-100"
+              valueColor="text-blue-700"
               link="/inventory"
             />
             <StatCard
@@ -152,6 +158,8 @@ export default function DashboardPage({ user }: { user: User }) {
               sub={stats?.topCustomers.length ? `${stats.topCustomers.length} com saldo` : "cadastrados"}
               icon="👥"
               color={stats?.expiringSoon ? "bg-orange-50 border-orange-100" : "bg-slate-50 border-slate-100"}
+              iconBg={stats?.expiringSoon ? "bg-orange-100" : "bg-slate-100"}
+              valueColor={stats?.expiringSoon ? "text-orange-700" : "text-slate-700"}
               link="/customers"
             />
           </div>
@@ -159,15 +167,15 @@ export default function DashboardPage({ user }: { user: User }) {
           {/* Ação rápida */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { to: "/sales", label: "Nova Venda", icon: "🛒", color: "bg-teal-600 hover:bg-teal-700 text-white" },
-              { to: "/inventory", label: "Ver Estoque", icon: "📦", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200" },
-              { to: "/customers", label: "Clientes", icon: "👥", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200" },
-              { to: "/commission", label: "Comissões", icon: "💰", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200" },
+              { to: "/sales", label: "Nova Venda", icon: "🛒", color: "bg-brand-700 hover:bg-brand-800 text-white shadow-md hover:shadow-lg" },
+              { to: "/inventory", label: "Ver Estoque", icon: "📦", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200 shadow-card hover:shadow-card-hover" },
+              { to: "/customers", label: "Clientes", icon: "👥", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200 shadow-card hover:shadow-card-hover" },
+              { to: "/commission", label: "Comissões", icon: "💰", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200 shadow-card hover:shadow-card-hover" },
             ].map(a => (
               <Link
                 key={a.to}
                 to={a.to}
-                className={`rounded-2xl p-4 flex items-center gap-3 font-medium text-sm transition-colors shadow-sm ${a.color}`}
+                className={`rounded-2xl p-4 flex items-center gap-3 font-semibold text-sm transition-all duration-200 ${a.color}`}
               >
                 <span className="text-xl">{a.icon}</span>
                 {a.label}
@@ -178,21 +186,20 @@ export default function DashboardPage({ user }: { user: User }) {
           {/* Ação rápida - segunda linha */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { to: "/receivables", label: "Recebimentos", icon: "💳", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200" },
-              { to: "/financial-report", label: "Relatório", icon: "📊", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200" },
-              { to: "/settings", label: "Configurações", icon: "⚙️", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200" },
+              { to: "/receivables", label: "Recebimentos", icon: "💳", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200 shadow-card hover:shadow-card-hover" },
+              { to: "/financial-report", label: "Relatório", icon: "📊", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200 shadow-card hover:shadow-card-hover" },
+              { to: "/settings", label: "Configurações", icon: "⚙️", color: "bg-white hover:bg-slate-50 text-gray-700 border border-slate-200 shadow-card hover:shadow-card-hover" },
             ].map(a => (
               <Link
                 key={a.to}
                 to={a.to}
-                className={`rounded-2xl p-4 flex items-center gap-3 font-medium text-sm transition-colors shadow-sm ${a.color}`}
+                className={`rounded-2xl p-4 flex items-center gap-3 font-semibold text-sm transition-all duration-200 ${a.color}`}
               >
                 <span className="text-xl">{a.icon}</span>
                 {a.label}
               </Link>
             ))}
-            {/* Espaço vazio para manter o grid */}
-            <div className="rounded-2xl p-4 opacity-0"></div>
+            <div className="rounded-2xl p-4 opacity-0 pointer-events-none" />
           </div>
 
           {/* Saúde do estoque */}
@@ -230,15 +237,21 @@ export default function DashboardPage({ user }: { user: User }) {
 }
 
 function StatCard({
-  label, value, sub, icon, color, link
+  label, value, sub, icon, color, iconBg, valueColor, link
 }: {
-  label: string; value: string; sub: string; icon: string; color: string; link: string;
+  label: string; value: string; sub: string; icon: string;
+  color: string; iconBg?: string; valueColor?: string; link: string;
 }) {
   return (
-    <Link to={link} className={`rounded-2xl border p-4 block hover:shadow-md transition-shadow ${color}`}>
-      <div className="text-2xl mb-1">{icon}</div>
-      <div className="text-xl font-bold text-gray-900 leading-tight">{value}</div>
-      <div className="text-xs text-gray-500 mt-0.5">{label}</div>
+    <Link
+      to={link}
+      className={`rounded-2xl border p-4 block card-interactive transition-all duration-200 ${color}`}
+    >
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3 ${iconBg ?? "bg-white/60"}`}>
+        {icon}
+      </div>
+      <div className={`text-money-md leading-tight ${valueColor ?? "text-gray-900"}`}>{value}</div>
+      <div className="text-xs font-semibold text-gray-600 mt-1 leading-snug">{label}</div>
       <div className="text-xs text-gray-400 mt-0.5">{sub}</div>
     </Link>
   );

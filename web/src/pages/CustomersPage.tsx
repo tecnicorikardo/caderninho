@@ -75,12 +75,12 @@ export default function CustomersPage({ user }: { user: User }) {
 
   return (
     <DashboardLayout title="Clientes">
-      <div className="space-y-4">
+      <div className="space-y-4 animate-fade-in">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-            placeholder="Buscar por nome, telefone ou e-mail…"
+            placeholder="Buscar por nome, telefone ou e-mailâ€¦"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -123,7 +123,7 @@ export default function CustomersPage({ user }: { user: User }) {
                   className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
                 <button type="submit" disabled={saving}
                   className="rounded-lg bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 text-sm font-medium disabled:opacity-60">
-                  {saving ? "Salvando…" : "Salvar"}
+                  {saving ? "Salvandoâ€¦" : "Salvar"}
                 </button>
               </div>
             </form>
@@ -132,7 +132,7 @@ export default function CustomersPage({ user }: { user: User }) {
 
         {/* Lista */}
         {loading ? (
-          <div className="text-sm text-gray-500 py-8 text-center">Carregando…</div>
+          <div className="text-sm text-gray-500 py-8 text-center">Carregandoâ€¦</div>
         ) : error && rows.length === 0 ? (
           <div className="text-sm text-red-600">{error}</div>
         ) : filtered.length === 0 ? (
@@ -181,4 +181,5 @@ export default function CustomersPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+
 

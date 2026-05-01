@@ -131,12 +131,12 @@ export default function InventoryPage({ user }: { user: User }) {
 
   return (
     <DashboardLayout title="Estoque">
-      <div className="space-y-4">
+      <div className="space-y-4 animate-fade-in">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-            placeholder="Buscar produto, marca ou SKU…"
+            placeholder="Buscar produto, marca ou SKUâ€¦"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -156,9 +156,9 @@ export default function InventoryPage({ user }: { user: User }) {
             "bg-yellow-50 border-yellow-200 text-yellow-700"
           }`}>
             <div className="flex items-center gap-2">
-              <span className="text-base">{expiryFilter === "30" ? "🔴" : expiryFilter === "60" ? "🟠" : "🟡"}</span>
+              <span className="text-base">{expiryFilter === "30" ? "ðŸ”´" : expiryFilter === "60" ? "ðŸŸ " : "ðŸŸ¡"}</span>
               <span className="text-sm font-medium">{EXPIRY_LABELS[expiryFilter]}</span>
-              <span className="text-xs opacity-70">— {filtered.length} produto{filtered.length !== 1 ? "s" : ""}</span>
+              <span className="text-xs opacity-70">â€” {filtered.length} produto{filtered.length !== 1 ? "s" : ""}</span>
             </div>
             <button
               onClick={() => setSearchParams({})}
@@ -217,7 +217,7 @@ export default function InventoryPage({ user }: { user: User }) {
                   className="rounded-lg border px-4 py-2 text-sm">Cancelar</button>
                 <button type="submit" disabled={saving}
                   className="rounded-lg bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 text-sm font-medium disabled:opacity-60">
-                  {saving ? "Salvando…" : "Salvar"}
+                  {saving ? "Salvandoâ€¦" : "Salvar"}
                 </button>
               </div>
             </form>
@@ -226,7 +226,7 @@ export default function InventoryPage({ user }: { user: User }) {
 
         {/* Lista */}
         {loading ? (
-          <div className="text-sm text-gray-500 py-8 text-center">Carregando…</div>
+          <div className="text-sm text-gray-500 py-8 text-center">Carregandoâ€¦</div>
         ) : filtered.length === 0 ? (
           <div className="text-sm text-gray-500 py-8 text-center">
             {search ? "Nenhum resultado." : "Nenhum produto cadastrado."}
@@ -246,7 +246,7 @@ export default function InventoryPage({ user }: { user: User }) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-gray-900 truncate">{r.productName}</div>
-                      <div className="text-xs text-gray-500">{r.brand}{r.sku ? ` • ${r.sku}` : ""}</div>
+                      <div className="text-xs text-gray-500">{r.brand}{r.sku ? ` â€¢ ${r.sku}` : ""}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="text-sm font-semibold text-gray-900">{r.quantity} un</div>
@@ -274,3 +274,4 @@ export default function InventoryPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+

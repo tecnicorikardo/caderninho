@@ -238,7 +238,7 @@ export default function SettingsPage({ user }: { user: User }) {
             disabled={saving}
             className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 text-sm font-medium disabled:opacity-60 transition-colors"
           >
-            {saving ? "Salvando…" : "Salvar margens"}
+            {saving ? "Salvandoâ€¦" : "Salvar margens"}
           </button>
         </div>
 
@@ -259,7 +259,7 @@ export default function SettingsPage({ user }: { user: User }) {
               onClick={downloadTemplate}
               className="flex-shrink-0 rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 text-sm font-semibold transition-colors"
             >
-              ⬇ Baixar modelo
+              â¬‡ Baixar modelo
             </button>
           </div>
 
@@ -274,7 +274,7 @@ export default function SettingsPage({ user }: { user: User }) {
               disabled={exporting}
               className="flex-shrink-0 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-gray-700 px-4 py-2.5 text-sm font-medium disabled:opacity-50 transition-colors"
             >
-              {exporting ? "Exportando…" : "⬇ Exportar Excel"}
+              {exporting ? "Exportandoâ€¦" : "â¬‡ Exportar Excel"}
             </button>
           </div>
 
@@ -317,7 +317,7 @@ export default function SettingsPage({ user }: { user: User }) {
                   disabled={importing || (importPreview.customers === 0 && importPreview.products === 0)}
                   className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors"
                 >
-                  {importing ? "Importando…" : `Importar ${importPreview.customers + importPreview.products} registros`}
+                  {importing ? "Importandoâ€¦" : `Importar ${importPreview.customers + importPreview.products} registros`}
                 </button>
               </div>
             )}
@@ -364,7 +364,7 @@ export default function SettingsPage({ user }: { user: User }) {
               disabled={pwdSaving}
               className="rounded-xl bg-gray-800 hover:bg-gray-900 text-white px-5 py-2.5 text-sm font-medium disabled:opacity-60 transition-colors"
             >
-              {pwdSaving ? "Alterando…" : "Alterar senha"}
+              {pwdSaving ? "Alterandoâ€¦" : "Alterar senha"}
             </button>
           </form>
         </div>
@@ -378,3 +378,4 @@ export default function SettingsPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+

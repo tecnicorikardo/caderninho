@@ -237,7 +237,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
 
   return (
     <DashboardLayout title="Relatório Financeiro">
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         
         {/* Header com período */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -267,7 +267,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
         </div>
 
         {loading ? (
-          <div className="text-sm text-gray-400 py-12 text-center">Calculando relatório…</div>
+          <div className="text-sm text-gray-400 py-12 text-center">Calculando relatórioâ€¦</div>
         ) : !summary ? (
           <div className="text-sm text-gray-400 py-12 text-center">Não há dados para o período selecionado.</div>
         ) : (
@@ -377,7 +377,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
                         <div className="text-right">
                           <div className="text-sm font-semibold text-gray-900">{formatMoney(product.revenue)}</div>
                           <div className="text-xs text-gray-500">
-                            {product.quantity > 0 ? formatMoney(product.revenue / product.quantity) : "—"} por unidade
+                            {product.quantity > 0 ? formatMoney(product.revenue / product.quantity) : "â€”"} por unidade
                           </div>
                         </div>
                       </div>
@@ -407,7 +407,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
                         <div className="text-right">
                           <div className="text-sm font-semibold text-gray-900">{formatMoney(customer.revenue)}</div>
                           <div className="text-xs text-gray-500">
-                            {customer.purchases > 0 ? formatMoney(customer.revenue / customer.purchases) : "—"} por compra
+                            {customer.purchases > 0 ? formatMoney(customer.revenue / customer.purchases) : "â€”"} por compra
                           </div>
                         </div>
                       </div>
@@ -455,7 +455,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
               
               <div className="mt-4 p-3 rounded-lg bg-teal-50 border border-teal-100">
                 <div className="text-xs text-teal-700">
-                  💡 <strong>Recomendação:</strong>{" "}
+                  ðŸ’¡ <strong>Recomendação:</strong>{" "}
                   {summary.grossMargin > 20 
                     ? "Sua margem está excelente! Continue focando nos produtos mais rentáveis."
                     : summary.grossMargin > 15

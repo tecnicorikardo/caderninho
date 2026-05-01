@@ -136,25 +136,25 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ── Header ── */}
-      <header className="bg-gradient-to-r from-teal-700 to-teal-500 shadow-md sticky top-0 z-30">
+      <header className="header-gradient shadow-lg sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold text-sm">B</div>
+            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-display font-bold text-base shadow-inner">B</div>
             <div>
-              <div className="text-xs font-medium text-teal-200 uppercase tracking-widest leading-none">Bloquinho Digital</div>
-              <h1 className="text-lg font-bold text-white leading-tight">{title}</h1>
+              <div className="text-[10px] font-semibold text-teal-200 uppercase tracking-[0.15em] leading-none">Bloquinho Digital</div>
+              <h1 className="text-lg font-display font-bold text-white leading-tight tracking-tight">{title}</h1>
             </div>
           </div>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 text-sm">
+          <nav className="hidden md:flex items-center gap-0.5 text-sm">
             {DESKTOP_NAV.map((n) => (
               <Link
                 key={n.to}
-                className={`px-3 py-2 rounded-lg font-medium transition-colors ${
+                className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 ${
                   location.pathname === n.to
-                    ? "bg-white/25 text-white"
-                    : "text-teal-100 hover:bg-white/15 hover:text-white"
+                    ? "bg-white/20 text-white shadow-sm"
+                    : "text-teal-100 hover:bg-white/10 hover:text-white"
                 }`}
                 to={n.to}
               >
@@ -165,7 +165,7 @@ export default function DashboardLayout({
 
           <button
             onClick={handleLogout}
-            className="text-xs text-teal-100 hover:text-white border border-white/30 hover:border-white/60 px-3 py-2 rounded-lg transition-colors"
+            className="text-xs font-medium text-teal-100 hover:text-white border border-white/25 hover:border-white/50 hover:bg-white/10 px-3 py-2 rounded-lg transition-all duration-200"
           >
             Sair
           </button>
