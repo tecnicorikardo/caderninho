@@ -10,6 +10,8 @@ import { db } from "@/lib/firebase";
 import { formatMoney, toCents } from "@/lib/money";
 import type { InventoryItem } from "@/lib/types";
 import { processImageForStorage, ImageUploadError } from "@/lib/imageUpload";
+import { PLAN_LIMITS, getUserPlan } from "@/lib/plan";
+import PlanLimitBanner from "@/ui/PlanLimitBanner";
 
 type Row = InventoryItem & { id: string };
 
@@ -222,6 +224,11 @@ export default function InventoryPage({ user }: { user: User }) {
 
   const activeFiltersCount = (brandFilter ? 1 : 0) + (expiryStatusFilter ? 1 : 0) + (expiryFilter ? 1 : 0);
 
+  // Limites do plano
+  const plan = getUserPlan();
+  const productLimit = PLAN_LIMITS[plan].products;
+  const atProductLimit = rows.length >= productLimit;
+
   function clearAllFilters() {
     setBrandFilter(null);
     setExpiryStatusFilter(null);
@@ -279,7 +286,9 @@ export default function InventoryPage({ user }: { user: User }) {
           </div>
           <button
             onClick={openNew}
-            className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 text-sm font-medium transition-colors shadow-sm"
+            disabled={atProductLimit}
+            className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title={atProductLimit ? `Limite de ${productLimit} produtos atingido` : undefined}
           >
             + Novo produto
           </button>
@@ -341,6 +350,9 @@ export default function InventoryPage({ user }: { user: User }) {
             </button>
           )}
         </div>
+
+        {/* Banner de limite do plano */}
+        <PlanLimitBanner current={rows.length} limit={productLimit} label="produtos" />
 
         {/* Banner de filtro de vencimento via URL */}
         {expiryFilter && (

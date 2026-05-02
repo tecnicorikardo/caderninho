@@ -9,6 +9,8 @@ import type { Customer } from "@/lib/types";
 import { buildCustomerHistoryText } from "@/lib/customerHistory";
 import { shareOrWhatsApp } from "@/lib/whatsapp";
 import { formatMoney } from "@/lib/money";
+import { PLAN_LIMITS, getUserPlan } from "@/lib/plan";
+import PlanLimitBanner from "@/ui/PlanLimitBanner";
 
 type Row = Customer & { id: string };
 
@@ -93,6 +95,11 @@ export default function CustomersPage({ user }: { user: User }) {
 
   const withBalanceCount = rows.filter(c => (c.balanceCents ?? 0) > 0).length;
 
+  // Limites do plano
+  const plan = getUserPlan();
+  const customerLimit = PLAN_LIMITS[plan].customers;
+  const atCustomerLimit = rows.length >= customerLimit;
+
   return (
     <DashboardLayout title="Clientes">
       <div className="space-y-4">
@@ -106,7 +113,9 @@ export default function CustomersPage({ user }: { user: User }) {
           />
           <button
             onClick={() => { setShowForm(true); setError(null); }}
-            className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 text-sm font-medium transition-colors shadow-sm"
+            disabled={atCustomerLimit}
+            className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 text-sm font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title={atCustomerLimit ? `Limite de ${customerLimit} clientes atingido` : undefined}
           >
             + Novo cliente
           </button>
@@ -181,6 +190,9 @@ export default function CustomersPage({ user }: { user: User }) {
             Maior saldo
           </button>
         </div>
+
+        {/* Banner de limite do plano */}
+        <PlanLimitBanner current={rows.length} limit={customerLimit} label="clientes" />
 
         {/* Formulário de cadastro */}
         {showForm && (

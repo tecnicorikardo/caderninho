@@ -14,10 +14,9 @@ export type UserProfile = {
   createdAt: Timestamp | ServerTimestamp;
   updatedAt: Timestamp | ServerTimestamp;
   onboardedAt?: Timestamp | ServerTimestamp | null;
-  // growthLevel é controlado pelo servidor (regras impedem update pelo front-end).
   growthLevel?: GrowthLevel;
-  // Margens configuráveis por marca
   brandMargins?: BrandMargin[];
+  planStatus?: "free" | "pro";
 };
 
 export type Customer = {
