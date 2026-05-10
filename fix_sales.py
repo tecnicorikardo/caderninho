@@ -1,0 +1,10 @@
+﻿f='web/src/pages/SalesPage.tsx'
+c=open(f,encoding='utf-8',errors='replace').read()
+c=c.replace('\u00e2\u20ac\u201c',' - ')
+c=c.replace('\u00e2\u20ac\u00a2',' - ')
+c=c.replace('\u00e2\u20ac\u00a6','...')
+c=c.replace('\u00e2\u0153\u201c','check')
+c=c.replace('\u00c2\u00aa','a')
+c=c.replace('\ufffd','')
+open(f,'w',encoding='utf-8').write(c)
+print('done')

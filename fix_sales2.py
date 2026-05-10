@@ -1,0 +1,11 @@
+﻿f='web/src/pages/SalesPage.tsx'
+raw=open(f,'rb').read()
+raw=raw.replace(b'\xe2\x80\x94',b' - ')
+raw=raw.replace(b'\xe2\x80\xa2',b' * ')
+raw=raw.replace(b'\xe2\x80\xa6',b'...')
+raw=raw.replace(b'\xe2\x9c\x93','check'.encode())
+raw=raw.replace(b'\xe2\x9c\x85','ok'.encode())
+raw=raw.replace(b'\xc2\xaa',b'a')
+raw=raw.replace(b'\xc2\xb7',b' * ')
+open(f,'wb').write(raw)
+print('done, size:', len(raw))

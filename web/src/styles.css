@@ -6,10 +6,13 @@
 @tailwind utilities;
 
 :root {
-  --brand-color: #0f766e;
-  --brand-dark: #0d5c56;
+  --brand:       #0d7a6e;
+  --brand-dark:  #0a5f56;
   --brand-light: #ccfbf1;
-  --text-main: #111827;
+  --brand-rgb:   13 122 110;
+  --brand-color: #0d7a6e; /* alias para compatibilidade */
+  --text-main:   #111827;
+  --bg-page:     #fafafa;
 }
 
 html, body {
@@ -51,3 +54,47 @@ h1, h2, h3, h4 {
   }
 }
 
+
+/* ── Tema configurável ───────────────────────────────────────────────────── */
+.header-gradient {
+  background: linear-gradient(
+    135deg,
+    var(--brand-dark, #0a5f56) 0%,
+    var(--brand, #0d7a6e) 60%,
+    color-mix(in srgb, var(--brand, #0d7a6e) 75%, white 25%) 100%
+  );
+}
+
+/* Card com borda da cor do tema */
+.card-brand {
+  background: white;
+  border-radius: 1rem;
+  border: 3px solid rgba(var(--brand-rgb, 13 122 110) / 0.45);
+  box-shadow: 0 1px 4px rgba(var(--brand-rgb, 13 122 110) / 0.12);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.card-brand:hover {
+  border-color: rgba(var(--brand-rgb, 13 122 110) / 0.70);
+  box-shadow: 0 3px 12px rgba(var(--brand-rgb, 13 122 110) / 0.18);
+}
+
+/* Botões que usam a cor do tema */
+.btn-brand {
+  background-color: var(--brand, #0d7a6e);
+  color: #fff;
+  transition: filter 200ms ease, transform 150ms ease;
+}
+.btn-brand:hover {
+  filter: brightness(0.88);
+  transform: translateY(-1px);
+}
+.btn-brand:active {
+  transform: translateY(0);
+  filter: brightness(0.82);
+}
+
+/* Focus ring com cor do tema */
+*:focus-visible {
+  outline: 2px solid var(--brand, #0d7a6e);
+  outline-offset: 2px;
+}

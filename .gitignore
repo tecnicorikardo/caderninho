@@ -30,3 +30,9 @@ mobile_flutter/build
 users.json
 .DS_Store
 Thumbs.db
+
+# Migration Tools
+tools/node_modules
+tools/export
+tools/.env
+tools/.env.*

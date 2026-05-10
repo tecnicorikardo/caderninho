@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
-import type { User } from "firebase/auth";
-import {
-  collection, addDoc, deleteDoc, doc, getDocs,
-  orderBy, query, serverTimestamp, Timestamp, updateDoc
-} from "firebase/firestore";
+import type { AppUser } from "@/App";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { ID } from "appwrite";
+import { toDate, toMillis } from "@/lib/timestamp";
 import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/ui/DashboardLayout";
-import { db } from "@/lib/firebase";
 import { formatMoney, toCents } from "@/lib/money";
 import type { InventoryItem } from "@/lib/types";
 import { processImageForStorage, ImageUploadError } from "@/lib/imageUpload";
 import { PLAN_LIMITS, getUserPlan } from "@/lib/plan";
 import PlanLimitBanner from "@/ui/PlanLimitBanner";
 
-type Row = InventoryItem & { id: string };
+type Row = InventoryItem & { $id: string };
 
 const BRANDS = ["Natura", "Avon", "Casa & Estilo", "Outra"];
 
@@ -27,7 +25,7 @@ const EMPTY_FORM = {
   expiryDate: "",
 };
 
-export default function InventoryPage({ user }: { user: User }) {
+export default function InventoryPage({ user }: { user: AppUser }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -63,9 +61,12 @@ export default function InventoryPage({ user }: { user: User }) {
 
   async function load() {
     setLoading(true);
-    const q = query(collection(db, "users", user.uid, "inventory"), orderBy("expiryDate", "asc"));
-    const snap = await getDocs(q);
-    setRows(snap.docs.map(d => ({ id: d.id, ...(d.data() as InventoryItem) })));
+    const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
+      Query.equal("userId", user.uid),
+      Query.orderAsc("expiryDate"),
+      Query.limit(1000),
+    ]);
+    setRows(res.documents.map(d => ({ $id: d.$id, ...(d as unknown as InventoryItem) })));
     setLoading(false);
   }
 
@@ -82,7 +83,7 @@ export default function InventoryPage({ user }: { user: User }) {
   }
 
   function openEdit(r: Row) {
-    setEditingId(r.id);
+    setEditingId(r.$id);
     setForm({
       productName: r.productName,
       brand: r.brand,
@@ -90,7 +91,7 @@ export default function InventoryPage({ user }: { user: User }) {
       quantity: String(r.quantity),
       costPrice: r.costPriceCents > 0 ? (r.costPriceCents / 100).toFixed(2) : "",
       sellingPrice: r.sellingPriceCents > 0 ? (r.sellingPriceCents / 100).toFixed(2) : "",
-      expiryDate: r.expiryDate?.toDate?.()?.toISOString().split("T")[0] ?? "",
+      expiryDate: r.expiryDate ? toDate(r.expiryDate).toISOString().split("T")[0] : "",
     });
     setImageFile(null);
     setImagePreview(r.imageUrl ?? null);
@@ -116,10 +117,10 @@ export default function InventoryPage({ user }: { user: User }) {
         setImageStatus(null);
       } else if (editingId && keepExistingImage) {
         // Mantém a imagem existente
-        imageUrl = rows.find(r => r.id === editingId)?.imageUrl ?? null;
+        imageUrl = rows.find(r => r.$id === editingId)?.imageUrl ?? null;
       }
 
-      const expiryDate = Timestamp.fromDate(new Date(`${form.expiryDate}T00:00:00`));
+      const expiryDate = new Date(`${form.expiryDate}T00:00:00`).toISOString();
       const data = {
         sku: form.sku || null,
         productName: form.productName.trim(),
@@ -129,18 +130,19 @@ export default function InventoryPage({ user }: { user: User }) {
         sellingPriceCents: toCents(form.sellingPrice),
         expiryDate,
         imageUrl: imageUrl ?? null,
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date().toISOString(),
       };
 
       if (editingId) {
         // EDITAR produto existente
-        await updateDoc(doc(db, "users", user.uid, "inventory", editingId), data);
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.INVENTORY, editingId, data);
       } else {
         // CRIAR novo produto
-        await addDoc(collection(db, "users", user.uid, "inventory"), {
+        await databases.createDocument(DATABASE_ID, COLLECTIONS.INVENTORY, ID.unique(), {
           ...data,
+          userId: user.uid,
           productId: `manual_${Date.now()}`,
-          createdAt: serverTimestamp(),
+          createdAt: new Date().toISOString(),
         });
       }
 
@@ -182,8 +184,8 @@ export default function InventoryPage({ user }: { user: User }) {
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`Excluir "${name}"?`)) return;
-    await deleteDoc(doc(db, "users", user.uid, "inventory", id));
-    setRows(r => r.filter(x => x.id !== id));
+    await databases.deleteDocument(DATABASE_ID, COLLECTIONS.INVENTORY, id);
+    setRows(r => r.filter(x => x.$id !== id));
   }
 
   const now = Date.now();
@@ -206,14 +208,14 @@ export default function InventoryPage({ user }: { user: User }) {
 
     // Filtro de validade (botões rápidos)
     if (expiryStatusFilter) {
-      const ms = r.expiryDate?.toMillis?.() ?? 0;
+      const ms = toMillis(r.expiryDate);
       if (expiryStatusFilter === "expired" && ms > now) return false;
       if (expiryStatusFilter === "expiring" && (ms <= now || ms > sixty)) return false;
     }
 
     // Filtro de vencimento (vindo da URL)
     if (expiryFilter) {
-      const ms = r.expiryDate?.toMillis?.() ?? 0;
+      const ms = toMillis(r.expiryDate);
       const days = Number(expiryFilter);
       const cutoff = now + days * 24 * 60 * 60 * 1000;
       return ms > 0 && ms <= cutoff && r.quantity > 0;
@@ -377,7 +379,7 @@ export default function InventoryPage({ user }: { user: User }) {
 
         {/* Formulário — novo ou edição */}
         {showForm && (
-          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+          <div className="card-brand p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold">
                 {editingId ? "✏️ Editar produto" : "Novo produto no estoque"}
@@ -487,15 +489,15 @@ export default function InventoryPage({ user }: { user: User }) {
         ) : viewMode === "list" ? (
 
           /* ── MODO LISTA ── */
-          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+          <div className="card-brand overflow-hidden">
             <div className="text-xs text-gray-500 px-4 py-2 border-b bg-slate-50">
               {filtered.length} produto{filtered.length !== 1 ? "s" : ""}
             </div>
             <div className="divide-y divide-slate-50">
               {filtered.map(r => {
-                const ms = r.expiryDate?.toMillis?.() ?? 0;
+                const ms = toMillis(r.expiryDate);
                 return (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+                  <div key={r.$id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
                     {r.imageUrl ? (
                       <img src={r.imageUrl} alt={r.productName} className="w-9 h-9 rounded-xl object-cover flex-shrink-0 border border-slate-100" />
                     ) : (
@@ -521,7 +523,7 @@ export default function InventoryPage({ user }: { user: User }) {
                     <button onClick={() => openEdit(r)}
                       className="text-gray-400 hover:text-teal-600 transition-colors flex-shrink-0 text-sm px-1.5 py-1 rounded-lg hover:bg-teal-50"
                       title="Editar">✏️</button>
-                    <button onClick={() => handleDelete(r.id, r.productName)}
+                    <button onClick={() => handleDelete(r.$id, r.productName)}
                       className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 text-lg leading-none" title="Excluir">×</button>
                   </div>
                 );
@@ -536,9 +538,9 @@ export default function InventoryPage({ user }: { user: User }) {
             <div className="text-xs text-gray-500 px-1">{filtered.length} produto{filtered.length !== 1 ? "s" : ""}</div>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
               {filtered.map(r => {
-                const ms = r.expiryDate?.toMillis?.() ?? 0;
+                const ms = toMillis(r.expiryDate);
                 return (
-                  <div key={r.id} className="relative bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
+                  <div key={r.$id} className="relative bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
                     {/* Imagem ou placeholder */}
                     <div className="aspect-square w-full bg-slate-50 flex items-center justify-center overflow-hidden">
                       {r.imageUrl ? (
@@ -558,7 +560,7 @@ export default function InventoryPage({ user }: { user: User }) {
                       <button onClick={() => openEdit(r)}
                         className="w-6 h-6 rounded-full bg-white/90 text-teal-600 hover:bg-teal-50 text-xs flex items-center justify-center shadow-sm"
                         title="Editar">✏️</button>
-                      <button onClick={() => handleDelete(r.id, r.productName)}
+                      <button onClick={() => handleDelete(r.$id, r.productName)}
                         className="w-6 h-6 rounded-full bg-white/90 text-gray-400 hover:text-red-500 hover:bg-white text-xs flex items-center justify-center shadow-sm"
                         title="Excluir">×</button>
                     </div>
@@ -586,9 +588,9 @@ export default function InventoryPage({ user }: { user: User }) {
             <div className="text-xs text-gray-500 px-1">{filtered.length} produto{filtered.length !== 1 ? "s" : ""}</div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {filtered.map(r => {
-                const ms = r.expiryDate?.toMillis?.() ?? 0;
+                const ms = toMillis(r.expiryDate);
                 return (
-                  <div key={r.id} className="relative bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
+                  <div key={r.$id} className="relative bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
                     {/* Imagem grande ou placeholder */}
                     <div className="aspect-square w-full bg-slate-50 flex items-center justify-center overflow-hidden">
                       {r.imageUrl ? (
@@ -611,7 +613,7 @@ export default function InventoryPage({ user }: { user: User }) {
                       <button onClick={() => openEdit(r)}
                         className="w-7 h-7 rounded-full bg-white/90 text-teal-600 hover:bg-teal-50 text-sm flex items-center justify-center shadow"
                         title="Editar">✏️</button>
-                      <button onClick={() => handleDelete(r.id, r.productName)}
+                      <button onClick={() => handleDelete(r.$id, r.productName)}
                         className="w-7 h-7 rounded-full bg-white/90 text-gray-400 hover:text-red-500 hover:bg-white text-base flex items-center justify-center shadow"
                         title="Excluir">×</button>
                     </div>
@@ -642,3 +644,4 @@ export default function InventoryPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+

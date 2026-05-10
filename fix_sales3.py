@@ -1,0 +1,11 @@
+﻿raw = open('web/src/pages/SalesPage.tsx','rb').read()
+raw = raw.replace(b'\xc3\xa2\xc2\x80\xc2\x94', b' - ')
+raw = raw.replace(b'\xc3\xa2\xc2\x80\xc2\xa2', b' * ')
+raw = raw.replace(b'\xc3\xa2\xc2\x80\xc2\xa6', b'...')
+raw = raw.replace(b'\xc3\xa2\xc2\x9c\xc2\x93', b'check ')
+raw = raw.replace(b'\xc3\xa2\xc2\x9c\xc2\x85', b'ok ')
+raw = raw.replace(b'\xc3\x82\xc2\xaa', b'a')
+open('web/src/pages/SalesPage.tsx','wb').write(raw)
+c = open('web/src/pages/SalesPage.tsx',encoding='utf-8',errors='replace').read()
+bad = [l for l in c.split('\n') if '\ufffd' in l or 'â' in l]
+print(len(bad), 'bad lines remaining')

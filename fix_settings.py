@@ -1,0 +1,10 @@
+﻿raw = open('web/src/pages/SettingsPage.tsx','rb').read()
+raw = raw.replace(b'\xe2\x80\xa6', b'...')
+raw = raw.replace(b'\xe2\xac\x87', b'\xe2\xac\x87')
+raw = raw.replace(b'\xc3\xa2\xc2\xac\xc2\x87', b'\xe2\xac\x87')
+raw = raw.replace(b'\xc3\xa2\xe2\x82\xac\xc2\xa6', b'...')
+open('web/src/pages/SettingsPage.tsx','wb').write(raw)
+c = open('web/src/pages/SettingsPage.tsx',encoding='utf-8',errors='replace').read()
+bad = [l for l in c.split('\n') if '\ufffd' in l or 'â' in l]
+print(len(bad), 'bad lines')
+for l in bad[:5]: print(repr(l[:80]))

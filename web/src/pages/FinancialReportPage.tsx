@@ -3,16 +3,12 @@
  * Mostra se o negócio está lucrando com visão completa de receitas, despesas e lucro
  */
 import { useEffect, useState } from "react";
-import type { User } from "firebase/auth";
-import {
-  collection, getDocs, query, where, orderBy,
-  Timestamp, doc, getDoc
-} from "firebase/firestore";
+import type { AppUser } from "@/App";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { toDate } from "@/lib/timestamp";
 import DashboardLayout from "@/ui/DashboardLayout";
-import { db } from "@/lib/firebase";
 import { formatMoney } from "@/lib/money";
 import type { Sale, Receivable, Customer, UserProfile, GrowthLevel } from "@/lib/types";
-import { getMarginPercent } from "@/lib/margins";
 
 type Period = "month" | "last30" | "quarter" | "year" | "all";
 
@@ -31,7 +27,7 @@ type FinancialSummary = {
   monthlyTrend: Array<{ month: string; revenue: number; profit: number }>;
 };
 
-export default function FinancialReportPage({ user }: { user: User }) {
+export default function FinancialReportPage({ user }: { user: AppUser }) {
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("month");
@@ -47,9 +43,12 @@ export default function FinancialReportPage({ user }: { user: User }) {
       const uid = user.uid;
       
       // Carregar perfil do usuário
-      const profileSnap = await getDoc(doc(db, "users", uid));
-      const level: GrowthLevel = profileSnap.exists()
-        ? ((profileSnap.data() as UserProfile).growthLevel ?? "Semente")
+      const profileRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
+        Query.equal("userId", uid),
+        Query.limit(1),
+      ]);
+      const level: GrowthLevel = profileRes.documents.length > 0
+        ? (((profileRes.documents[0] as unknown as UserProfile).growthLevel) ?? "Semente")
         : "Semente";
       setUserLevel(level);
 
@@ -81,25 +80,28 @@ export default function FinancialReportPage({ user }: { user: User }) {
       }
 
       // Carregar vendas do período
-      const salesQuery = query(
-        collection(db, "users", uid, "sales"),
-        where("createdAt", ">=", Timestamp.fromDate(startDate)),
-        orderBy("createdAt", "desc")
-      );
-      const salesSnap = await getDocs(salesQuery);
+      const salesRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.SALES, [
+        Query.equal("userId", uid),
+        Query.greaterThanEqual("createdAt", startDate.toISOString()),
+        Query.orderDesc("createdAt"),
+        Query.limit(1000),
+      ]);
 
       // Carregar recebíveis
-      const receivablesQuery = query(
-        collection(db, "users", uid, "receivables"),
-        where("createdAt", ">=", Timestamp.fromDate(startDate))
-      );
-      const receivablesSnap = await getDocs(receivablesQuery);
+      const receivablesRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.RECEIVABLES, [
+        Query.equal("userId", uid),
+        Query.greaterThanEqual("createdAt", startDate.toISOString()),
+        Query.limit(1000),
+      ]);
 
       // Carregar clientes
-      const customersSnap = await getDocs(collection(db, "users", uid, "customers"));
+      const customersRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+        Query.equal("userId", uid),
+        Query.limit(1000),
+      ]);
       const customersMap = new Map<string, Customer>();
-      customersSnap.docs.forEach(doc => {
-        customersMap.set(doc.id, doc.data() as Customer);
+      customersRes.documents.forEach(d => {
+        customersMap.set(d.$id, d as unknown as Customer);
       });
 
       // Processar dados
@@ -110,13 +112,14 @@ export default function FinancialReportPage({ user }: { user: User }) {
       const customerMap = new Map<string, { revenue: number; purchases: number }>();
       const monthlyMap = new Map<string, { revenue: number; profit: number }>();
 
-      for (const saleDoc of salesSnap.docs) {
-        const sale = saleDoc.data() as Sale;
+      for (const saleDoc of salesRes.documents) {
+        const sale = saleDoc as unknown as Sale;
+        const items = typeof sale.items === "string" ? JSON.parse(sale.items || "[]") : (sale.items ?? []);
         revenue += sale.totalCents ?? 0;
         salesCount++;
 
         // Processar itens da venda
-        for (const item of sale.items ?? []) {
+        for (const item of items) {
           const itemCost = (item.unitCostCents ?? 0) * (item.quantity ?? 0);
           const itemRevenue = (item.unitPriceCents ?? 0) * (item.quantity ?? 0);
           cost += itemCost;
@@ -139,7 +142,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
         }
 
         // Agrupar por mês
-        const saleDate = sale.createdAt?.toDate?.() || new Date();
+        const saleDate = toDate(sale.createdAt);
         const monthKey = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
         const currentMonth = monthlyMap.get(monthKey) || { revenue: 0, profit: 0 };
         const saleProfit = (sale.totalCents ?? 0) - cost;
@@ -153,8 +156,8 @@ export default function FinancialReportPage({ user }: { user: User }) {
       let receivablesCollected = 0;
       let outstandingReceivables = 0;
       
-      for (const recDoc of receivablesSnap.docs) {
-        const receivable = recDoc.data() as Receivable;
+      for (const recDoc of receivablesRes.documents) {
+        const receivable = recDoc as unknown as Receivable;
         if (receivable.status === "paid") {
           receivablesCollected += receivable.paidCents;
         } else {
@@ -274,19 +277,19 @@ export default function FinancialReportPage({ user }: { user: User }) {
           <>
             {/* Cards de resumo */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+              <div className="card-brand p-5">
                 <div className="text-xs text-gray-500 mb-1">Receita Total</div>
                 <div className="text-2xl font-bold text-gray-900">{formatMoney(summary.revenue)}</div>
                 <div className="text-xs text-gray-400 mt-1">{summary.salesCount} venda{summary.salesCount !== 1 ? "s" : ""}</div>
               </div>
               
-              <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+              <div className="card-brand p-5">
                 <div className="text-xs text-gray-500 mb-1">Custo Total</div>
                 <div className="text-2xl font-bold text-gray-900">{formatMoney(summary.cost)}</div>
                 <div className="text-xs text-gray-400 mt-1">{formatMoney(summary.avgSaleValue)} por venda</div>
               </div>
               
-              <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+              <div className="card-brand p-5">
                 <div className="text-xs text-gray-500 mb-1">Lucro Bruto</div>
                 <div className={`text-2xl font-bold ${getProfitColor(summary.grossProfit)}`}>
                   {formatMoney(summary.grossProfit)}
@@ -296,7 +299,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
                 </div>
               </div>
               
-              <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+              <div className="card-brand p-5">
                 <div className="text-xs text-gray-500 mb-1">Fluxo de Caixa</div>
                 <div className="text-2xl font-bold text-gray-900">{formatMoney(summary.receivablesCollected)}</div>
                 <div className="text-xs text-gray-400 mt-1">
@@ -307,7 +310,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
 
             {/* Gráfico de tendência */}
             {summary.monthlyTrend.length > 0 && (
-              <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+              <div className="card-brand p-5">
                 <h2 className="text-base font-semibold text-gray-800 mb-4">Tendência Mensal</h2>
                 <div className="h-64 flex items-end gap-2">
                   {summary.monthlyTrend.map((month, index) => {
@@ -359,7 +362,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
             {/* Top produtos e clientes */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Top produtos */}
-              <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+              <div className="card-brand p-5">
                 <h2 className="text-base font-semibold text-gray-800 mb-4">Produtos Mais Rentáveis</h2>
                 <div className="space-y-3">
                   {summary.topProducts.length > 0 ? (
@@ -389,7 +392,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
               </div>
 
               {/* Top clientes */}
-              <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+              <div className="card-brand p-5">
                 <h2 className="text-base font-semibold text-gray-800 mb-4">Clientes Mais Valiosos</h2>
                 <div className="space-y-3">
                   {summary.topCustomers.length > 0 ? (
@@ -420,7 +423,7 @@ export default function FinancialReportPage({ user }: { user: User }) {
             </div>
 
             {/* Análise de rentabilidade */}
-            <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+            <div className="card-brand p-5">
               <h2 className="text-base font-semibold text-gray-800 mb-4">Análise de Rentabilidade</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
@@ -470,3 +473,4 @@ export default function FinancialReportPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+

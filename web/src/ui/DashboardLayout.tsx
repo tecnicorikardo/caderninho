@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { signOut } from "firebase/auth";
+import { account } from "@/lib/appwrite";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { auth } from "@/lib/firebase";
 
 // ─── Desktop nav (top) ───────────────────────────────────────────────────────
 const DESKTOP_NAV = [
@@ -128,7 +127,10 @@ export default function DashboardLayout({
   const [menuOpen, setMenuOpen] = useState(false);
 
   async function handleLogout() {
-    if (confirm("Deseja sair da conta?")) await signOut(auth);
+    if (confirm("Deseja sair da conta?")) {
+      await account.deleteSession("current");
+      window.location.href = "/";
+    }
   }
 
   const isMenuRoute = MENU_ITEMS.some(m => m.to === location.pathname);

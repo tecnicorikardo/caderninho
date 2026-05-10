@@ -1,11 +1,6 @@
-import {
-  Timestamp,
-  collection,
-  doc,
-  runTransaction,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { ID } from "appwrite";
+import { nowISO } from "@/lib/timestamp";
 import type { PaymentType, Receivable, ReceivableStatus, Sale, SaleItem } from "@/lib/types";
 
 function computeReceivableStatus(amountCents: number, paidCents: number): ReceivableStatus {
@@ -26,108 +21,84 @@ export async function createSaleWithReceivables(params: {
   installments?: InstallmentPlan;
 }) {
   const { uid, customerId, items, totalCents, paidCents, paymentType, installments } = params;
-
-  const salesCol = collection(db, "users", uid, "sales");
-  const receivablesCol = collection(db, "users", uid, "receivables");
-  const customersCol = collection(db, "users", uid, "customers");
-  const inventoryCol = collection(db, "users", uid, "inventory");
-
-  const saleRef = doc(salesCol);
-  const customerRef = doc(customersCol, customerId);
+  const now = nowISO();
   const outstanding = Math.max(0, totalCents - paidCents);
 
-  // Pré-calcular refs de estoque para usar dentro da transação
-  const inventoryRefs = items
-    .filter(it => !!it.inventoryId)
-    .map(it => ({ it, ref: doc(inventoryCol, it.inventoryId!) }));
+  // 1. Baixar estoque dos itens com inventoryId
+  for (const item of items) {
+    if (!item.inventoryId) continue;
+    const doc = await databases.getDocument(DATABASE_ID, COLLECTIONS.INVENTORY, item.inventoryId);
+    const currentQty = Number(doc.quantity ?? 0);
+    const nextQty = currentQty - item.quantity;
+    if (nextQty < 0) throw new Error(`Estoque insuficiente para: ${item.productName}`);
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.INVENTORY, item.inventoryId, {
+      quantity: nextQty,
+      updatedAt: now,
+    });
+  }
 
-  await runTransaction(db, async (tx) => {
-    // ── FASE 1: TODAS AS LEITURAS ──────────────────────────────────────────
-    const invSnaps = await Promise.all(inventoryRefs.map(({ ref }) => tx.get(ref)));
-
-    // Leitura do cliente só se houver saldo a receber
-    const custSnap = outstanding > 0 ? await tx.get(customerRef) : null;
-
-    // ── VALIDAÇÕES (sem I/O) ───────────────────────────────────────────────
-    const invUpdates: Array<{ ref: ReturnType<typeof doc>; nextQty: number }> = [];
-
-    for (let i = 0; i < inventoryRefs.length; i++) {
-      const snap = invSnaps[i];
-      const { it, ref } = inventoryRefs[i];
-      if (!snap.exists()) throw new Error(`Item de estoque não encontrado: ${it.productName}`);
-      const qty = Number((snap.data() as { quantity?: number }).quantity ?? 0);
-      const next = qty - it.quantity;
-      if (next < 0) throw new Error(`Estoque insuficiente para: ${it.productName}`);
-      invUpdates.push({ ref, nextQty: next });
-    }
-
-    // ── FASE 2: TODAS AS ESCRITAS ──────────────────────────────────────────
-
-    // Atualizar estoque
-    for (const { ref, nextQty } of invUpdates) {
-      tx.update(ref, { quantity: nextQty, updatedAt: serverTimestamp() });
-    }
-
-    // Criar venda
-    const sale: Sale = {
-      customerId,
-      items,
-      totalCents,
-      paidCents,
-      paymentType,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-    tx.set(saleRef, sale);
-
-    // Criar recebível para fiado
-    if (paymentType === "fiado") {
-      const ref = doc(receivablesCol);
-      const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      const rec: Receivable = {
-        saleId: saleRef.id,
-        customerId,
-        dueDate: Timestamp.fromDate(dueDate),
-        amountCents: outstanding,
-        paidCents: 0,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      tx.set(ref, rec);
-    }
-
-    // Criar recebíveis para parcelado
-    if (paymentType === "installments") {
-      const plan = installments ?? [];
-      for (const inst of plan) {
-        const ref = doc(receivablesCol);
-        const rec: Receivable = {
-          saleId: saleRef.id,
-          customerId,
-          dueDate: Timestamp.fromDate(inst.dueDate),
-          amountCents: inst.amountCents,
-          paidCents: 0,
-          status: computeReceivableStatus(inst.amountCents, 0),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-        tx.set(ref, rec);
-      }
-    }
-
-    // Atualizar saldo do cliente
-    if (outstanding > 0) {
-      const current = custSnap?.exists()
-        ? Number((custSnap.data() as { balanceCents?: number }).balanceCents ?? 0)
-        : 0;
-      tx.set(
-        customerRef,
-        { balanceCents: current + outstanding, updatedAt: serverTimestamp(), createdAt: serverTimestamp() },
-        { merge: true },
-      );
-    }
+  // 2. Criar venda
+  const saleDoc = await databases.createDocument(DATABASE_ID, COLLECTIONS.SALES, ID.unique(), {
+    userId: uid,
+    customerId,
+    items: JSON.stringify(items),
+    totalCents,
+    paidCents,
+    paymentType,
+    createdAt: now,
+    updatedAt: now,
   });
 
-  return saleRef.id;
+  const saleId = saleDoc.$id;
+
+  // 3. Criar recebível para fiado
+  if (paymentType === "fiado") {
+    const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await databases.createDocument(DATABASE_ID, COLLECTIONS.RECEIVABLES, ID.unique(), {
+      userId: uid,
+      saleId,
+      customerId,
+      dueDate,
+      amountCents: outstanding,
+      paidCents: 0,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  // 4. Criar recebíveis para parcelado
+  if (paymentType === "installments") {
+    const plan = installments ?? [];
+    for (const inst of plan) {
+      await databases.createDocument(DATABASE_ID, COLLECTIONS.RECEIVABLES, ID.unique(), {
+        userId: uid,
+        saleId,
+        customerId,
+        dueDate: inst.dueDate.toISOString(),
+        amountCents: inst.amountCents,
+        paidCents: 0,
+        status: computeReceivableStatus(inst.amountCents, 0),
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+
+  // 5. Atualizar saldo do cliente
+  if (outstanding > 0) {
+    const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+      Query.equal("$id", customerId),
+      Query.limit(1),
+    ]);
+    if (res.documents.length > 0) {
+      const current = Number(res.documents[0].balanceCents ?? 0);
+      await databases.updateDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, customerId, {
+        balanceCents: current + outstanding,
+        updatedAt: now,
+      });
+    }
+  }
+
+  return saleId;
 }

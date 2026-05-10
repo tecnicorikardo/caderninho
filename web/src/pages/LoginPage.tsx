@@ -1,26 +1,23 @@
 import { useState } from "react";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-} from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { account } from "@/lib/appwrite";
+import { ID } from "appwrite";
+import { databases, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
+import type { AppUser } from "@/App";
 
 type Mode = "login" | "register" | "forgot";
 
 function errorMessage(err: unknown): string {
-  const msg = err instanceof Error ? err.message : "";
-  if (msg.includes("user-not-found") || msg.includes("invalid-credential")) return "E-mail ou senha incorretos.";
-  if (msg.includes("wrong-password")) return "Senha incorreta.";
-  if (msg.includes("email-already-in-use")) return "Este e-mail já está cadastrado.";
-  if (msg.includes("weak-password")) return "A senha deve ter pelo menos 6 caracteres.";
-  if (msg.includes("invalid-email")) return "E-mail inválido.";
-  if (msg.includes("too-many-requests")) return "Muitas tentativas. Aguarde alguns minutos.";
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes("Invalid credentials") || msg.includes("user_invalid_credentials")) return "E-mail ou senha incorretos.";
+  if (msg.includes("email-already-in-use") || msg.includes("user_already_exists")) return "Este e-mail já está cadastrado.";
+  if (msg.includes("weak-password") || msg.includes("password_recently_used")) return "A senha deve ter pelo menos 8 caracteres.";
+  if (msg.includes("Invalid email") || msg.includes("user_invalid_email")) return "E-mail inválido.";
+  if (msg.includes("too-many-requests") || msg.includes("rate_limit")) return "Muitas tentativas. Aguarde alguns minutos.";
+  if (msg.includes("Recovery email")) return "E-mail de recuperação enviado!";
   return "Algo deu errado. Tente novamente.";
 }
 
-export default function LoginPage() {
+export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => void }) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,27 +45,41 @@ export default function LoginPage() {
 
     try {
       if (mode === "login") {
-        await signInWithEmailAndPassword(auth, email, password);
+        const session = await account.createEmailPasswordSession(email, password);
+        const user = await account.get();
+        onLogin({ uid: user.$id, email: user.email });
 
       } else if (mode === "register") {
         if (!name.trim()) { setError("Informe seu nome."); setLoading(false); return; }
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        // Cria o perfil do usuário no Firestore
-        await setDoc(doc(db, "users", cred.user.uid), {
-          email: email.trim().toLowerCase(),
-          displayName: name.trim(),
+
+        // Criar conta no Appwrite
+        const user = await account.create(ID.unique(), email, password, name.trim());
+
+        // Fazer login automaticamente
+        await account.createEmailPasswordSession(email, password);
+
+        // Criar perfil no banco
+        const now = new Date().toISOString();
+        await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), {
+          userId: user.$id,
+          createdAt: now,
+          updatedAt: now,
+          onboardedAt: null,
           growthLevel: "Semente",
-          brandMargins: [
+          brandMargins: JSON.stringify([
             { brand: "Natura", marginPercent: 30 },
             { brand: "Avon", marginPercent: 30 },
             { brand: "Casa & Estilo", marginPercent: 15 },
-          ],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          ]),
+          planStatus: "free",
+          themeColor: null,
         });
 
+        onLogin({ uid: user.$id, email: user.email });
+
       } else if (mode === "forgot") {
-        await sendPasswordResetEmail(auth, email);
+        const redirectUrl = `${window.location.origin}/`;
+        await account.createRecovery(email, redirectUrl);
         setSuccess("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
         setLoading(false);
         return;
@@ -97,7 +108,6 @@ export default function LoginPage() {
 
         <form onSubmit={onSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
 
-          {/* Campo nome — só no cadastro */}
           {mode === "register" && (
             <div>
               <label className="inp-label">Seu nome</label>
@@ -113,7 +123,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* E-mail */}
           <div>
             <label className="inp-label">E-mail</label>
             <input
@@ -127,7 +136,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Senha — não aparece no "esqueci" */}
           {mode !== "forgot" && (
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -145,7 +153,7 @@ export default function LoginPage() {
               <input
                 className="inp"
                 type="password"
-                placeholder={mode === "register" ? "Mínimo 6 caracteres" : "••••••••"}
+                placeholder={mode === "register" ? "Mínimo 8 caracteres" : "••••••••"}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 autoComplete={mode === "register" ? "new-password" : "current-password"}
@@ -154,7 +162,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Erro / Sucesso */}
           {error && (
             <div className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
               {error}
@@ -166,7 +173,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Botão principal */}
           <button
             type="submit"
             disabled={loading}
@@ -180,7 +186,6 @@ export default function LoginPage() {
             }
           </button>
 
-          {/* Links de alternância */}
           <div className="text-center text-xs text-gray-500 pt-1">
             {mode === "login" && (
               <>

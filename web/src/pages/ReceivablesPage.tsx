@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
-import type { User } from "firebase/auth";
-import { collection, getDocs, query, orderBy, doc, serverTimestamp, runTransaction, updateDoc, Timestamp } from "firebase/firestore";
+import type { AppUser } from "@/App";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { ID } from "appwrite";
+import { toDate, toMillis } from "@/lib/timestamp";
 import DashboardLayout from "@/ui/DashboardLayout";
-import { db } from "@/lib/firebase";
 import { formatMoney, toCents } from "@/lib/money";
 import type { Receivable, ReceivableStatus, Customer } from "@/lib/types";
 
 const STATUS_LABELS: Record<ReceivableStatus, string> = { pending: "Pendente", partial: "Parcial", paid: "Pago", late: "Atrasado" };
 const STATUS_COLORS: Record<ReceivableStatus, string> = { pending: "bg-yellow-100 text-yellow-800", partial: "bg-blue-100 text-blue-800", paid: "bg-green-100 text-green-800", late: "bg-red-100 text-red-800" };
 
-type RecRow = Receivable & { id: string; daysLate: number; isOverdue: boolean };
+type RecRow = Receivable & { $id: string; daysLate: number; isOverdue: boolean };
 type Group = { customerId: string; name: string; phone: string; totalOwed: number; overdueAmount: number; rows: RecRow[] };
 type ModalMode = "list" | "paySelected" | "payAll" | "partial" | "changeDate";
 
@@ -35,7 +36,7 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const selectedRows = open.filter(r => selected.has(r.id));
+  const selectedRows = open.filter(r => selected.has(r.$id));
   const selectedTotal = selectedRows.reduce((s, r) => s + (r.amountCents - r.paidCents), 0);
 
   function toggleSelect(id: string) {
@@ -47,15 +48,27 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
     if (selectedRows.length === 0) { setErr('Selecione ao menos uma parcela.'); return; }
     setBusy(true); setErr('');
     try {
-      const custRef = doc(db, 'users', uid, 'customers', group.customerId);
-      await runTransaction(db, async tx => {
-        const snap = await tx.get(custRef);
-        const bal = snap.exists() ? Number((snap.data() as Customer).balanceCents ?? 0) : 0;
-        for (const r of selectedRows) {
-          tx.update(doc(db, 'users', uid, 'receivables', r.id), { paidCents: r.amountCents, status: 'paid', updatedAt: serverTimestamp() });
-        }
-        tx.update(custRef, { balanceCents: Math.max(0, bal - selectedTotal), updatedAt: serverTimestamp() });
-      });
+      const now = new Date().toISOString();
+      // Update each selected receivable to paid
+      for (const r of selectedRows) {
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.RECEIVABLES, r.$id, {
+          paidCents: r.amountCents,
+          status: 'paid',
+          updatedAt: now,
+        });
+      }
+      // Update customer balance
+      const custRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+        Query.equal("$id", group.customerId),
+        Query.limit(1),
+      ]);
+      if (custRes.documents.length > 0) {
+        const bal = Number((custRes.documents[0] as unknown as Customer).balanceCents ?? 0);
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, group.customerId, {
+          balanceCents: Math.max(0, bal - selectedTotal),
+          updatedAt: now,
+        });
+      }
       onRefresh();
     } catch { setErr('Erro ao registrar.'); setBusy(false); }
   }
@@ -63,15 +76,26 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
   async function handlePayAll() {
     setBusy(true); setErr('');
     try {
-      const custRef = doc(db, 'users', uid, 'customers', group.customerId);
-      await runTransaction(db, async tx => {
-        const snap = await tx.get(custRef);
-        const bal = snap.exists() ? Number((snap.data() as Customer).balanceCents ?? 0) : 0;
-        for (const r of open) {
-          tx.update(doc(db, 'users', uid, 'receivables', r.id), { paidCents: r.amountCents, status: 'paid', updatedAt: serverTimestamp() });
-        }
-        tx.update(custRef, { balanceCents: Math.max(0, bal - group.totalOwed), updatedAt: serverTimestamp() });
-      });
+      const now = new Date().toISOString();
+      for (const r of open) {
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.RECEIVABLES, r.$id, {
+          paidCents: r.amountCents,
+          status: 'paid',
+          updatedAt: now,
+        });
+      }
+      // Update customer balance
+      const custRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+        Query.equal("$id", group.customerId),
+        Query.limit(1),
+      ]);
+      if (custRes.documents.length > 0) {
+        const bal = Number((custRes.documents[0] as unknown as Customer).balanceCents ?? 0);
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, group.customerId, {
+          balanceCents: Math.max(0, bal - group.totalOwed),
+          updatedAt: now,
+        });
+      }
       onRefresh();
     } catch { setErr('Erro ao registrar.'); setBusy(false); }
   }
@@ -85,8 +109,7 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
     setBusy(true); setErr('');
     try {
       const leftover = totalOwedOpen - paidNow;
-      const custRef = doc(db, 'users', uid, 'customers', group.customerId);
-      const recCol = collection(db, 'users', uid, 'receivables');
+      const now = new Date().toISOString();
 
       // Gerar plano de reparcelamento do restante
       const baseAmount = Math.floor(leftover / reParcelNum);
@@ -95,7 +118,7 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + reParcelFirstDays + i * 30);
         return {
-          dueDate: Timestamp.fromDate(dueDate),
+          dueDate: dueDate.toISOString(),
           amountCents: baseAmount + (i === 0 ? remainder : 0),
         };
       });
@@ -103,40 +126,43 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
       // Pegar o saleId de referência (da primeira parcela aberta)
       const refSaleId = open[0]?.saleId ?? '';
 
-      await runTransaction(db, async tx => {
-        const snap = await tx.get(custRef);
-        const bal = snap.exists() ? Number((snap.data() as Customer).balanceCents ?? 0) : 0;
-
-        // Marca TODAS as parcelas abertas como pagas (zeramos a dívida atual)
-        for (const r of open) {
-          tx.update(doc(db, 'users', uid, 'receivables', r.id), {
-            paidCents: r.amountCents,
-            status: 'paid',
-            updatedAt: serverTimestamp(),
-          });
-        }
-
-        // Cria novas parcelas para o restante
-        for (const inst of newInstallments) {
-          tx.set(doc(recCol), {
-            saleId: refSaleId,
-            customerId: group.customerId,
-            dueDate: inst.dueDate,
-            amountCents: inst.amountCents,
-            paidCents: 0,
-            status: 'pending',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
-
-        // Atualiza saldo do cliente: desconta o total pago agora
-        // O restante (leftover) continua como saldo pois as novas parcelas foram criadas
-        tx.update(custRef, {
-          balanceCents: Math.max(0, bal - paidNow),
-          updatedAt: serverTimestamp(),
+      // Marca TODAS as parcelas abertas como pagas
+      for (const r of open) {
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.RECEIVABLES, r.$id, {
+          paidCents: r.amountCents,
+          status: 'paid',
+          updatedAt: now,
         });
-      });
+      }
+
+      // Cria novas parcelas para o restante
+      for (const inst of newInstallments) {
+        await databases.createDocument(DATABASE_ID, COLLECTIONS.RECEIVABLES, ID.unique(), {
+          userId: uid,
+          saleId: refSaleId,
+          customerId: group.customerId,
+          dueDate: inst.dueDate,
+          amountCents: inst.amountCents,
+          paidCents: 0,
+          status: 'pending',
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      // Atualiza saldo do cliente: desconta o total pago agora
+      const custRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+        Query.equal("$id", group.customerId),
+        Query.limit(1),
+      ]);
+      if (custRes.documents.length > 0) {
+        const bal = Number((custRes.documents[0] as unknown as Customer).balanceCents ?? 0);
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, group.customerId, {
+          balanceCents: Math.max(0, bal - paidNow),
+          updatedAt: now,
+        });
+      }
+
       onRefresh();
     } catch (e) { console.error(e); setErr('Erro ao registrar pagamento parcial.'); setBusy(false); }
   }
@@ -146,7 +172,11 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
     setBusy(true); setErr('');
     try {
       const [y,m,d] = newDate.split('-').map(Number);
-      await updateDoc(doc(db, 'users', uid, 'receivables', changeDateId), { dueDate: Timestamp.fromDate(new Date(y, m-1, d)), updatedAt: serverTimestamp() });
+      const dueDate = new Date(y, m-1, d).toISOString();
+      await databases.updateDocument(DATABASE_ID, COLLECTIONS.RECEIVABLES, changeDateId, {
+        dueDate,
+        updatedAt: new Date().toISOString(),
+      });
       onRefresh();
     } catch { setErr('Erro ao alterar data.'); setBusy(false); }
   }
@@ -188,11 +218,11 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
                   <p className="text-xs text-gray-500">Selecione as parcelas para pagar:</p>
                   {open.map((r, i) => {
                     const rem = r.amountCents - r.paidCents;
-                    const due = r.dueDate?.toDate?.()?.toLocaleDateString("pt-BR") ?? "--";
-                    const sel = selected.has(r.id);
+                    const due = r.dueDate ? toDate(r.dueDate as string).toLocaleDateString("pt-BR") : "--";
+                    const sel = selected.has(r.$id);
                     return (
-                      <label key={r.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${sel ? "border-teal-400 bg-teal-50" : "border-slate-200 hover:bg-slate-50"}`}>
-                        <input type="checkbox" checked={sel} onChange={() => toggleSelect(r.id)} className="w-4 h-4 accent-teal-600 flex-shrink-0" />
+                      <label key={r.$id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${sel ? "border-teal-400 bg-teal-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                        <input type="checkbox" checked={sel} onChange={() => toggleSelect(r.$id)} className="w-4 h-4 accent-teal-600 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[r.status]}`}>{STATUS_LABELS[r.status]}</span>
@@ -225,8 +255,8 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
               </div>
               <div className="space-y-1">
                 {selectedRows.map((r, i) => (
-                  <div key={r.id} className="flex justify-between text-sm text-gray-600 py-1 border-b border-slate-100 last:border-0">
-                    <span>Parcela {open.indexOf(r)+1} - {r.dueDate?.toDate?.()?.toLocaleDateString("pt-BR")}</span>
+                  <div key={r.$id} className="flex justify-between text-sm text-gray-600 py-1 border-b border-slate-100 last:border-0">
+                    <span>Parcela {open.indexOf(r)+1} - {r.dueDate ? toDate(r.dueDate as string).toLocaleDateString("pt-BR") : "--"}</span>
                     <span className="font-semibold">{formatMoney(r.amountCents - r.paidCents)}</span>
                   </div>
                 ))}
@@ -344,9 +374,9 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
               <p className="text-xs text-gray-500">Qual parcela quer reagendar?</p>
               <div className="space-y-1">
                 {open.map((r, i) => (
-                  <label key={r.id} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${changeDateId === r.id ? "border-teal-400 bg-teal-50" : "border-slate-200 hover:bg-slate-50"}`}>
-                    <input type="radio" name="changeDate" checked={changeDateId === r.id} onChange={() => { setChangeDateId(r.id); setErr(""); }} className="accent-teal-600" />
-                    <span className="text-sm text-gray-700 flex-1">Parcela {i+1} - vence {r.dueDate?.toDate?.()?.toLocaleDateString("pt-BR")}</span>
+                  <label key={r.$id} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${changeDateId === r.$id ? "border-teal-400 bg-teal-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                    <input type="radio" name="changeDate" checked={changeDateId === r.$id} onChange={() => { setChangeDateId(r.$id); setErr(""); }} className="accent-teal-600" />
+                    <span className="text-sm text-gray-700 flex-1">Parcela {i+1} - vence {r.dueDate ? toDate(r.dueDate as string).toLocaleDateString("pt-BR") : "--"}</span>
                     <span className="text-sm font-semibold">{formatMoney(r.amountCents - r.paidCents)}</span>
                   </label>
                 ))}
@@ -439,7 +469,7 @@ function CustomerModal({ group, onClose, onRefresh, uid }: { group: Group; onClo
   );
 }
 
-export default function ReceivablesPage({ user }: { user: User }) {
+export default function ReceivablesPage({ user }: { user: AppUser }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
@@ -450,19 +480,26 @@ export default function ReceivablesPage({ user }: { user: User }) {
     setLoading(true);
     try {
       const uid = user.uid;
-      const [recSnap, custSnap] = await Promise.all([
-        getDocs(query(collection(db, "users", uid, "receivables"), orderBy("dueDate", "asc"))),
-        getDocs(collection(db, "users", uid, "customers")),
+      const [recRes, custRes] = await Promise.all([
+        databases.listDocuments(DATABASE_ID, COLLECTIONS.RECEIVABLES, [
+          Query.equal("userId", uid),
+          Query.orderAsc("dueDate"),
+          Query.limit(1000),
+        ]),
+        databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+          Query.equal("userId", uid),
+          Query.limit(1000),
+        ]),
       ]);
       const custMap = new Map<string, Customer>();
-      custSnap.docs.forEach(d => custMap.set(d.id, d.data() as Customer));
+      custRes.documents.forEach(d => custMap.set(d.$id, d as unknown as Customer));
       const now = Date.now();
       const map = new Map<string, Group>();
-      for (const d of recSnap.docs) {
-        const rec = d.data() as Receivable;
+      for (const d of recRes.documents) {
+        const rec = d as unknown as Receivable;
         const cid = rec.customerId;
         const cust = custMap.get(cid);
-        const dueMs = rec.dueDate?.toMillis?.() ?? 0;
+        const dueMs = toMillis(rec.dueDate);
         const daysLate = dueMs > 0 ? Math.max(0, Math.floor((now - dueMs) / 86_400_000)) : 0;
         const isOverdue = daysLate > 0 && rec.status !== "paid";
         const remaining = rec.amountCents - rec.paidCents;
@@ -474,7 +511,7 @@ export default function ReceivablesPage({ user }: { user: User }) {
           g.totalOwed += remaining;
           if (isOverdue) g.overdueAmount += remaining;
         }
-        g.rows.push({ id: d.id, ...rec, daysLate, isOverdue });
+        g.rows.push({ $id: d.$id, ...rec, daysLate, isOverdue });
       }
       setGroups(Array.from(map.values()).sort((a, b) => b.totalOwed - a.totalOwed));
     } catch (e) { console.error(e); }
@@ -489,12 +526,12 @@ export default function ReceivablesPage({ user }: { user: User }) {
     <DashboardLayout title="Recebimentos">
       <div className="space-y-4 animate-fade-in">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
+          <div className="card-brand p-4">
             <div className="text-xs text-gray-500">Total a receber</div>
             <div className="text-2xl font-bold text-gray-900 mt-1">{formatMoney(totalPending)}</div>
             <div className="text-xs text-gray-400 mt-0.5">{withDebt} cliente{withDebt !== 1 ? "s" : ""}</div>
           </div>
-          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
+          <div className="card-brand p-4">
             <div className="text-xs text-gray-500">Em atraso</div>
             <div className={`text-2xl font-bold mt-1 ${totalOverdue > 0 ? "text-red-600" : "text-gray-400"}`}>{formatMoney(totalOverdue)}</div>
             <div className="text-xs text-gray-400 mt-0.5">{groups.filter(g => g.overdueAmount > 0).length} cliente{groups.filter(g => g.overdueAmount > 0).length !== 1 ? "s" : ""}</div>
@@ -504,7 +541,7 @@ export default function ReceivablesPage({ user }: { user: User }) {
             <div className="text-sm text-teal-700 mt-1">Toque em um cliente para ver as parcelas.</div>
           </div>
         </div>
-        <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+        <div className="card-brand overflow-hidden">
           <div className="px-5 py-3 border-b bg-slate-50">
             <h2 className="text-sm font-semibold text-gray-800">Clientes com saldo</h2>
           </div>
@@ -554,4 +591,5 @@ export default function ReceivablesPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+
 

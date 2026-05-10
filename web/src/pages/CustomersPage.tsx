@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import type { User } from "firebase/auth";
-import {
-  collection, getDocs, addDoc, limit, orderBy, query, serverTimestamp
-} from "firebase/firestore";
+import type { AppUser } from "@/App";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { ID } from "appwrite";
 import DashboardLayout from "@/ui/DashboardLayout";
-import { db } from "@/lib/firebase";
 import type { Customer } from "@/lib/types";
 import { buildCustomerHistoryText } from "@/lib/customerHistory";
 import { shareOrWhatsApp } from "@/lib/whatsapp";
@@ -12,11 +10,11 @@ import { formatMoney } from "@/lib/money";
 import { PLAN_LIMITS, getUserPlan } from "@/lib/plan";
 import PlanLimitBanner from "@/ui/PlanLimitBanner";
 
-type Row = Customer & { id: string };
+type Row = Customer & { $id: string };
 
 const EMPTY = { name: "", phone: "", email: "", address: "" };
 
-export default function CustomersPage({ user }: { user: User }) {
+export default function CustomersPage({ user }: { user: AppUser }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +23,6 @@ export default function CustomersPage({ user }: { user: User }) {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
 
-  // Filtros rápidos
   type CustomerFilter = "all" | "withBalance" | "noBalance";
   type CustomerSort = "recent" | "az" | "balance";
   const [activeFilter, setActiveFilter] = useState<CustomerFilter>("all");
@@ -34,10 +31,12 @@ export default function CustomersPage({ user }: { user: User }) {
   async function load() {
     setLoading(true);
     setError(null);
-    const colRef = collection(db, "users", user.uid, "customers");
-    const q = query(colRef, orderBy("createdAt", "desc"), limit(200));
-    const snap = await getDocs(q);
-    setRows(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Customer) })));
+    const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+      Query.equal("userId", user.uid),
+      Query.orderDesc("createdAt"),
+      Query.limit(200),
+    ]);
+    setRows(res.documents.map(d => ({ $id: d.$id, ...(d as unknown as Customer) })));
     setLoading(false);
   }
 
@@ -54,16 +53,18 @@ export default function CustomersPage({ user }: { user: User }) {
     setSaving(true);
     setError(null);
     try {
-      await addDoc(collection(db, "users", user.uid, "customers"), {
+      const now = new Date().toISOString();
+      await databases.createDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, ID.unique(), {
+        userId: user.uid,
         name: form.name.trim(),
         phone: form.phone.trim(),
         phoneNormalized: form.phone.replace(/\D/g, ""),
         email: form.email.trim() || null,
         address: form.address.trim() || null,
         balanceCents: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      } satisfies Omit<Customer, "createdAt" | "updatedAt"> & { createdAt: ReturnType<typeof serverTimestamp>; updatedAt: ReturnType<typeof serverTimestamp> });
+        createdAt: now,
+        updatedAt: now,
+      });
       setForm(EMPTY);
       setShowForm(false);
       await load();
@@ -196,7 +197,7 @@ export default function CustomersPage({ user }: { user: User }) {
 
         {/* Formulário de cadastro */}
         {showForm && (
-          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+          <div className="card-brand p-5">
             <h2 className="text-base font-semibold mb-4">Novo cliente</h2>
             <form onSubmit={handleSave} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -247,8 +248,8 @@ export default function CustomersPage({ user }: { user: User }) {
             <div className="grid gap-3 sm:grid-cols-2">
               {filtered.map((c) => (
                 <div
-                  key={c.id}
-                  className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4 flex items-center justify-between gap-3 hover:shadow-md transition-shadow"
+                  key={c.$id}
+                  className="card-brand p-4 flex items-center justify-between gap-3 hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-lg flex-shrink-0">
@@ -268,7 +269,7 @@ export default function CustomersPage({ user }: { user: User }) {
                   <button
                     className="rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 text-xs font-medium min-h-10 transition-colors flex-shrink-0"
                     onClick={async () => {
-                      const text = await buildCustomerHistoryText({ uid: user.uid, customerId: c.id, customer: c });
+                      const text = await buildCustomerHistoryText({ uid: user.uid, customerId: c.$id, customer: c });
                       await shareOrWhatsApp(text);
                     }}
                   >
@@ -283,4 +284,5 @@ export default function CustomersPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+
 

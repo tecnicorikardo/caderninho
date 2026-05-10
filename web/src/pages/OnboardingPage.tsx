@@ -1,11 +1,11 @@
 import { Suspense, lazy, useState } from "react";
-import type { User } from "firebase/auth";
+import type { AppUser } from "@/App";
 import { markOnboarded } from "@/lib/profile";
 import { downloadWorkbookTemplate } from "@/lib/templates";
 
 const ImportWizard = lazy(() => import("@/pages/components/ImportWizard"));
 
-export default function OnboardingPage({ user, onDone }: { user: User; onDone: () => void }) {
+export default function OnboardingPage({ user, onDone }: { user: AppUser; onDone: () => void }) {
   const [mode, setMode] = useState<"choose" | "import" | "zero">("choose");
   const [busy, setBusy] = useState(false);
 

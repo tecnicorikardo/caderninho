@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { toMillis } from "@/lib/timestamp";
 import { useNavigate } from "react-router-dom";
-import { db } from "@/lib/firebase";
 import { formatMoney } from "@/lib/money";
 import type { InventoryItem } from "@/lib/types";
 
-type Row = InventoryItem & { id: string };
+type Row = InventoryItem & { $id: string };
 
 export default function StockHealthWidget({ uid }: { uid: string }) {
   const [items, setItems] = useState<Row[]>([]);
@@ -15,9 +15,12 @@ export default function StockHealthWidget({ uid }: { uid: string }) {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const q = query(collection(db, "users", uid, "inventory"), orderBy("expiryDate", "asc"));
-      const snap = await getDocs(q);
-      setItems(snap.docs.map(d => ({ id: d.id, ...(d.data() as InventoryItem) })));
+      const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
+        Query.equal("userId", uid),
+        Query.orderAsc("expiryDate"),
+        Query.limit(1000),
+      ]);
+      setItems(res.documents.map(d => ({ $id: d.$id, ...(d as unknown as InventoryItem) })));
       setLoading(false);
     }
     load().catch(() => setLoading(false));
@@ -43,7 +46,7 @@ export default function StockHealthWidget({ uid }: { uid: string }) {
       totalQty += qty;
       totalValue += (it.sellingPriceCents ?? 0) * qty;
 
-      const ms = it.expiryDate?.toMillis?.() ?? 0;
+      const ms = toMillis(it.expiryDate);
       if (!ms) continue;
 
       if (ms < now) { expired.push(it); continue; }
@@ -57,7 +60,7 @@ export default function StockHealthWidget({ uid }: { uid: string }) {
   }, [items]);
 
   if (loading) return (
-    <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+    <div className="card-brand p-5">
       <div className="text-sm text-gray-400">Carregando estoque…</div>
     </div>
   );
@@ -73,7 +76,7 @@ export default function StockHealthWidget({ uid }: { uid: string }) {
           </div>
           <div className="space-y-1">
             {stats.expired.slice(0, 3).map(it => (
-              <div key={it.id} className="text-xs text-red-700 flex justify-between">
+              <div key={it.$id} className="text-xs text-red-700 flex justify-between">
                 <span>{it.productName} ({it.brand})</span>
                 <span>{it.quantity} un • {formatMoney(it.sellingPriceCents * it.quantity)}</span>
               </div>
@@ -91,7 +94,7 @@ export default function StockHealthWidget({ uid }: { uid: string }) {
           </div>
           <div className="space-y-1">
             {stats.critical.slice(0, 4).map(it => (
-              <div key={it.id} className="text-xs text-orange-700 flex justify-between">
+              <div key={it.$id} className="text-xs text-orange-700 flex justify-between">
                 <span>{it.productName}</span>
                 <span>{it.quantity} un • {formatMoney(it.sellingPriceCents * it.quantity)}</span>
               </div>
@@ -104,7 +107,7 @@ export default function StockHealthWidget({ uid }: { uid: string }) {
       )}
 
       {/* Widget principal */}
-      <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
+      <div className="card-brand p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-semibold text-gray-800">Saúde do Estoque</h2>
@@ -163,11 +166,11 @@ export default function StockHealthWidget({ uid }: { uid: string }) {
             <div className="text-xs font-medium text-gray-600 mb-2">Prioridade de venda (FEFO):</div>
             <div className="space-y-1.5">
               {[...stats.critical, ...stats.warning].slice(0, 6).map(it => {
-                const ms = it.expiryDate?.toMillis?.() ?? 0;
+                const ms = toMillis(it.expiryDate);
                 const days = Math.ceil((ms - Date.now()) / (24 * 60 * 60 * 1000));
                 const isCritical = days <= 30;
                 return (
-                  <div key={it.id} className={`flex items-center justify-between text-xs rounded-lg px-3 py-2 ${isCritical ? "bg-red-50" : "bg-orange-50"}`}>
+                  <div key={it.$id} className={`flex items-center justify-between text-xs rounded-lg px-3 py-2 ${isCritical ? "bg-red-50" : "bg-orange-50"}`}>
                     <span className={`font-medium ${isCritical ? "text-red-800" : "text-orange-800"}`}>{it.productName}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-500">{it.quantity} un</span>
@@ -213,3 +216,4 @@ function AlertBadge({
     </button>
   );
 }
+

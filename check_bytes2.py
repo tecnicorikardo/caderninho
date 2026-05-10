@@ -1,0 +1,7 @@
+﻿raw = open('web/src/pages/SalesPage.tsx','rb').read()
+idx = raw.find(b'rounded-md')
+print('after rounded-md:', raw[idx+10:idx+20].hex())
+idx2 = raw.find(b'Entrada')
+print('before Entrada:', raw[idx2-6:idx2].hex())
+idx3 = raw.find(b'hover:b')
+print('after hover:b:', raw[idx3+7:idx3+20].hex())

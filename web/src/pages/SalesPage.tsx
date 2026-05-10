@@ -1,18 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import type { User } from "firebase/auth";
-import {
-  collection, getDocs, orderBy, query, limit, doc, getDoc
-} from "firebase/firestore";
+import type { AppUser } from "@/App";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { toDate } from "@/lib/timestamp";
 import DashboardLayout from "@/ui/DashboardLayout";
-import { db } from "@/lib/firebase";
 import { formatMoney, toCents } from "@/lib/money";
 import { createSaleWithReceivables, type InstallmentPlan } from "@/lib/sales";
 import { calculatePriceFromConfigured } from "@/lib/margins";
 import type { BrandMargin, Customer, InventoryItem, PaymentType, SaleItem, UserProfile } from "@/lib/types";
 
-type InvRow = InventoryItem & { id: string };
+type InvRow = InventoryItem & { $id: string };
 type CartItem = { inv: InvRow; qty: number };
-type CustomerRow = Customer & { id: string };
+type CustomerRow = Customer & { $id: string };
 
 const PAYMENT_LABELS: Record<PaymentType, string> = {
   cash: "Dinheiro",
@@ -41,7 +39,7 @@ function buildInstallmentPlan(totalCents: number, numInstallments: number, first
   return plan;
 }
 
-export default function SalesPage({ user }: { user: User }) {
+export default function SalesPage({ user }: { user: AppUser }) {
   const [inventory, setInventory] = useState<InvRow[]>([]);
   const [allCustomers, setAllCustomers] = useState<CustomerRow[]>([]);
   const [brandMargins, setBrandMargins] = useState<BrandMargin[]>(DEFAULT_MARGINS);
@@ -62,35 +60,49 @@ export default function SalesPage({ user }: { user: User }) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [search, setSearch] = useState("");
-  const [recentSales, setRecentSales] = useState<Array<{ id: string; total: number; date: string; items: number }>>([]);
+  const [recentSales, setRecentSales] = useState<Array<{ $id: string; total: number; date: string; items: number }>>([]);
 
   const customerInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function load() {
-      const profileSnap = await getDoc(doc(db, "users", user.uid));
-      if (profileSnap.exists()) {
-        const p = profileSnap.data() as UserProfile;
-        if (p.brandMargins && p.brandMargins.length > 0) setBrandMargins(p.brandMargins);
+      // Load profile for brand margins
+      const profileRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
+        Query.equal("userId", user.uid),
+        Query.limit(1),
+      ]);
+      if (profileRes.documents.length > 0) {
+        const p = profileRes.documents[0];
+        const margins = p.brandMargins ? JSON.parse(p.brandMargins as string) : null;
+        if (margins && margins.length > 0) setBrandMargins(margins);
       }
 
-      const q = query(collection(db, "users", user.uid, "inventory"), orderBy("expiryDate", "asc"));
-      const snap = await getDocs(q);
-      setInventory(snap.docs
-        .map(d => ({ id: d.id, ...(d.data() as InventoryItem) }))
+      const invRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
+        Query.equal("userId", user.uid),
+        Query.orderAsc("expiryDate"),
+        Query.limit(1000),
+      ]);
+      setInventory(invRes.documents
+        .map(d => ({ $id: d.$id, ...(d as unknown as InventoryItem) }))
         .filter(i => i.quantity > 0)
       );
 
-      const custSnap = await getDocs(collection(db, "users", user.uid, "customers"));
-      setAllCustomers(custSnap.docs.map(d => ({ id: d.id, ...(d.data() as Customer) })));
+      const custRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+        Query.equal("userId", user.uid),
+        Query.limit(1000),
+      ]);
+      setAllCustomers(custRes.documents.map(d => ({ $id: d.$id, ...(d as unknown as Customer) })));
 
-      const salesQ = query(collection(db, "users", user.uid, "sales"), orderBy("createdAt", "desc"), limit(10));
-      const salesSnap = await getDocs(salesQ);
-      setRecentSales(salesSnap.docs.map(d => {
-        const data = d.data();
-        const date = data.createdAt?.toDate?.()?.toLocaleDateString("pt-BR") ?? "—";
-        return { id: d.id, total: data.totalCents ?? 0, date, items: (data.items ?? []).length };
+      const salesRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.SALES, [
+        Query.equal("userId", user.uid),
+        Query.orderDesc("createdAt"),
+        Query.limit(10),
+      ]);
+      setRecentSales(salesRes.documents.map(d => {
+        const date = d.createdAt ? toDate(d.createdAt as string).toLocaleDateString("pt-BR") : "—";
+        const items = typeof d.items === "string" ? JSON.parse(d.items || "[]") : (d.items ?? []);
+        return { $id: d.$id, total: d.totalCents ?? 0, date, items: items.length };
       }));
     }
     load().catch(console.error);
@@ -132,29 +144,29 @@ export default function SalesPage({ user }: { user: User }) {
   }
 
   function selectCustomer(c: CustomerRow) {
-    setCustomerId(c.id);
+    setCustomerId(c.$id);
     setCustomerSearch(c.name);
     setShowSuggestions(false);
   }
 
   function addToCart(inv: InvRow) {
     setCart(c => {
-      const existing = c.find(x => x.inv.id === inv.id);
+      const existing = c.find(x => x.inv.$id === inv.$id);
       if (existing) {
         if (existing.qty >= inv.quantity) return c;
-        return c.map(x => x.inv.id === inv.id ? { ...x, qty: x.qty + 1 } : x);
+        return c.map(x => x.inv.$id === inv.$id ? { ...x, qty: x.qty + 1 } : x);
       }
       return [...c, { inv, qty: 1 }];
     });
   }
 
   function removeFromCart(id: string) {
-    setCart(c => c.filter(x => x.inv.id !== id));
+    setCart(c => c.filter(x => x.inv.$id !== id));
   }
 
   function updateQty(id: string, qty: number) {
     if (qty <= 0) { removeFromCart(id); return; }
-    setCart(c => c.map(x => x.inv.id === id ? { ...x, qty: Math.min(qty, x.inv.quantity) } : x));
+    setCart(c => c.map(x => x.inv.$id === id ? { ...x, qty: Math.min(qty, x.inv.quantity) } : x));
   }
 
   const totalCents = cart.reduce((sum, x) => sum + x.inv.sellingPriceCents * x.qty, 0);
@@ -193,7 +205,7 @@ export default function SalesPage({ user }: { user: User }) {
     setMsg(null);
     try {
       const items: SaleItem[] = cart.map(x => ({
-        inventoryId: x.inv.id,
+        inventoryId: x.inv.$id,
         productId: x.inv.productId,
         productName: x.inv.productName,
         brand: x.inv.brand,
@@ -234,9 +246,12 @@ export default function SalesPage({ user }: { user: User }) {
       setDownPayment("");
 
       // Recarregar estoque
-      const q = query(collection(db, "users", user.uid, "inventory"), orderBy("expiryDate", "asc"));
-      const snap = await getDocs(q);
-      setInventory(snap.docs.map(d => ({ id: d.id, ...(d.data() as InventoryItem) })).filter(i => i.quantity > 0));
+      const invRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
+        Query.equal("userId", user.uid),
+        Query.orderAsc("expiryDate"),
+        Query.limit(1000),
+      ]);
+      setInventory(invRes.documents.map(d => ({ $id: d.$id, ...(d as unknown as InventoryItem) })).filter(i => i.quantity > 0));
     } catch (e) {
       setMsg({ type: "err", text: e instanceof Error ? e.message : "Erro ao registrar venda." });
     } finally {
@@ -257,19 +272,19 @@ export default function SalesPage({ user }: { user: User }) {
             onChange={e => setSearch(e.target.value)}
           />
 
-          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+          <div className="card-brand overflow-hidden">
             <div className="text-xs text-gray-500 px-4 py-2 border-b bg-slate-50">
               {filtered.length} produto{filtered.length !== 1 ? "s" : ""} disponíveis
             </div>
             <div className="divide-y divide-slate-50 max-h-[420px] overflow-y-auto">
               {filtered.map(inv => {
-                const ms = inv.expiryDate?.toMillis?.() ?? 0;
+                const ms = inv.expiryDate ? new Date(inv.expiryDate as string).getTime() : 0;
                 const expiring = ms > 0 && ms <= sixty;
                 const suggested = calculatePriceFromConfigured(inv.costPriceCents, inv.brand, brandMargins);
-                const inCart = cart.find(x => x.inv.id === inv.id);
+                const inCart = cart.find(x => x.inv.$id === inv.$id);
 
                 return (
-                  <div key={inv.id} className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors ${expiring ? "bg-orange-50" : ""}`}>
+                  <div key={inv.$id} className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors ${expiring ? "bg-orange-50" : ""}`}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium text-gray-900 truncate">{inv.productName}</span>
@@ -299,7 +314,7 @@ export default function SalesPage({ user }: { user: User }) {
 
         {/* Carrinho */}
         <div className="space-y-3">
-          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4 space-y-3">
+          <div className="card-brand p-4 space-y-3">
             <h2 className="text-base font-semibold">Carrinho</h2>
 
             {/* Cliente — sempre obrigatório */}
@@ -327,7 +342,7 @@ export default function SalesPage({ user }: { user: User }) {
                 >
                   {customerSuggestions.map(c => (
                     <button
-                      key={c.id}
+                      key={c.$id}
                       type="button"
                       onMouseDown={e => { e.preventDefault(); selectCustomer(c); }}
                       className="w-full text-left px-4 py-3 hover:bg-teal-50 active:bg-teal-100 transition-colors border-b border-slate-50 last:border-0"
@@ -351,17 +366,17 @@ export default function SalesPage({ user }: { user: User }) {
             ) : (
               <div className="space-y-2">
                 {cart.map(({ inv, qty }) => (
-                  <div key={inv.id} className="flex items-center gap-2 text-sm">
+                  <div key={inv.$id} className="flex items-center gap-2 text-sm">
                     <div className="flex-1 min-w-0">
                       <div className="truncate font-medium text-gray-800">{inv.productName}</div>
                       <div className="text-xs text-gray-500">{inv.brand} • {formatMoney(inv.sellingPriceCents)} × {qty}</div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => updateQty(inv.id, qty - 1)} className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-sm font-bold">−</button>
+                      <button onClick={() => updateQty(inv.$id, qty - 1)} className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-sm font-bold">−</button>
                       <span className="w-6 text-center text-sm">{qty}</span>
-                      <button onClick={() => updateQty(inv.id, qty + 1)} className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-sm font-bold">+</button>
+                      <button onClick={() => updateQty(inv.$id, qty + 1)} className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 text-sm font-bold">+</button>
                     </div>
-                    <button onClick={() => removeFromCart(inv.id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
+                    <button onClick={() => removeFromCart(inv.$id)} className="text-gray-300 hover:text-red-500 text-lg leading-none">×</button>
                   </div>
                 ))}
               </div>
@@ -514,11 +529,11 @@ export default function SalesPage({ user }: { user: User }) {
 
           {/* Vendas recentes */}
           {recentSales.length > 0 && (
-            <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
+            <div className="card-brand p-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Vendas recentes</h3>
               <div className="space-y-1">
                 {recentSales.map(s => (
-                  <div key={s.id} className="flex justify-between text-xs text-gray-600 py-1 border-b border-slate-50 last:border-0">
+                  <div key={s.$id} className="flex justify-between text-xs text-gray-600 py-1 border-b border-slate-50 last:border-0">
                     <span>{s.date} • {s.items} item{s.items !== 1 ? "s" : ""}</span>
                     <span className="font-semibold text-gray-800">{formatMoney(s.total)}</span>
                   </div>
@@ -531,3 +546,4 @@ export default function SalesPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+

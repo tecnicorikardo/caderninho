@@ -1,0 +1,20 @@
+﻿import { useEffect, useState } from "react";
+import type { User } from "firebase/auth";
+import { collection, getDocs, query, orderBy, doc, serverTimestamp, runTransaction, updateDoc, Timestamp } from "firebase/firestore";
+import DashboardLayout from "@/ui/DashboardLayout";
+import { db } from "@/lib/firebase";
+import { formatMoney, toCents } from "@/lib/money";
+import type { Receivable, ReceivableStatus, Customer } from "@/lib/types";
+
+const STATUS_LABELS: Record<ReceivableStatus, string> = { pending: "Pendente", partial: "Parcial", paid: "Pago", late: "Atrasado" };
+const STATUS_COLORS: Record<ReceivableStatus, string> = { pending: "bg-yellow-100 text-yellow-800", partial: "bg-blue-100 text-blue-800", paid: "bg-green-100 text-green-800", late: "bg-red-100 text-red-800" };
+
+type RecRow = Receivable & { id: string; daysLate: number; isOverdue: boolean };
+type Group = { customerId: string; name: string; phone: string; totalOwed: number; overdueAmount: number; rows: RecRow[] };
+type ModalMode = "list" | "paySelected" | "payAll" | "partial" | "changeDate";
+
+function computeStatus(amount: number, paid: number): ReceivableStatus {
+  if (paid <= 0) return "pending";
+  if (paid >= amount) return "paid";
+  return "partial";
+}

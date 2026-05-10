@@ -1,0 +1,5 @@
+﻿raw = open('web/src/pages/SalesPage.tsx','rb').read()
+idx = raw.find(b'hover:bg-slate-200 text-sm font-bold')
+print('after font-bold:', raw[idx+36:idx+46].hex())
+idx2 = raw.find(b'hover:bg-slate-200 text-sm font-bold', idx+1)
+print('second after font-bold:', raw[idx2+36:idx2+46].hex())

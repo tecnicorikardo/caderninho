@@ -1,17 +1,13 @@
 /**
- * P√°gina de Comiss√£o por Marca
- * Mostra quanto a revendedora ganhou de comiss√£o por marca no per√≠odo
- * e uma calculadora interativa de pre√ßo/comiss√£o.
- * Usa as margens configuradas pela usu√°ria em Configura√ß√µes.
+ * P·gina de Comiss„o por Marca
+ * Mostra quanto a revendedora ganhou de comiss„o por marca no perÌodo
+ * e uma calculadora interativa de preÁo/comiss„o.
+ * Usa as margens configuradas pela usu·ria em ConfiguraÁıes.
  */
 import { useEffect, useState } from "react";
-import type { User } from "firebase/auth";
-import {
-  collection, getDocs, query, orderBy, where,
-  Timestamp, doc, getDoc
-} from "firebase/firestore";
+import type { AppUser } from "@/App";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
 import DashboardLayout from "@/ui/DashboardLayout";
-import { db } from "@/lib/firebase";
 import { formatMoney, toCents } from "@/lib/money";
 import { getConfiguredMargin, calculatePriceFromConfigured } from "@/lib/margins";
 import type { Sale, SaleItem, UserProfile, BrandMargin } from "@/lib/types";
@@ -35,13 +31,13 @@ type Period = "month" | "last30" | "all" | "custom";
 
 const MONTH_NAMES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
-export default function CommissionPage({ user }: { user: User }) {
+export default function CommissionPage({ user }: { user: AppUser }) {
   const [brandMargins, setBrandMargins] = useState<BrandMargin[]>(DEFAULT_BRANDS);
   const [summaries, setSummaries] = useState<BrandSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("month");
 
-  // Seletor de m√™s/ano customizado
+  // Seletor de mÍs/ano customizado
   const now = new Date();
   const [customMonth, setCustomMonth] = useState(now.getMonth()); // 0-11
   const [customYear, setCustomYear] = useState(now.getFullYear());
@@ -52,7 +48,7 @@ export default function CommissionPage({ user }: { user: User }) {
   const [calcSelling, setCalcSelling] = useState("");
   const [calcMode, setCalcMode] = useState<"fromCost" | "fromSelling">("fromCost");
 
-  // Anos dispon√≠veis (√∫ltimos 5 anos)
+  // Anos disponÌveis (˙ltimos 5 anos)
   const availableYears = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i);
 
   useEffect(() => {
@@ -60,14 +56,19 @@ export default function CommissionPage({ user }: { user: User }) {
       setLoading(true);
 
       // Carregar margens configuradas
-      const profileSnap = await getDoc(doc(db, "users", user.uid));
-      const margins: BrandMargin[] = profileSnap.exists()
-        ? ((profileSnap.data() as UserProfile).brandMargins ?? DEFAULT_BRANDS)
+      const profileRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
+        Query.equal("userId", user.uid),
+        Query.limit(1),
+      ]);
+      const margins: BrandMargin[] = profileRes.documents.length > 0
+        ? (profileRes.documents[0].brandMargins
+            ? JSON.parse(profileRes.documents[0].brandMargins as string)
+            : DEFAULT_BRANDS)
         : DEFAULT_BRANDS;
       setBrandMargins(margins);
       if (!calcBrand && margins.length > 0) setCalcBrand(margins[0].brand);
 
-      // Per√≠odo
+      // PerÌodo
       const now = new Date();
       let startDate: Date;
       let endDate: Date | null = null;
@@ -83,47 +84,38 @@ export default function CommissionPage({ user }: { user: User }) {
         startDate = new Date(2020, 0, 1);
       }
 
-      let q;
-      if (endDate) {
-        q = query(
-          collection(db, "users", user.uid, "sales"),
-          where("createdAt", ">=", Timestamp.fromDate(startDate)),
-          where("createdAt", "<=", Timestamp.fromDate(endDate)),
-          orderBy("createdAt", "desc")
-        );
-      } else {
-        q = query(
-          collection(db, "users", user.uid, "sales"),
-          where("createdAt", ">=", Timestamp.fromDate(startDate)),
-          orderBy("createdAt", "desc")
-        );
-      }
+      const salesQueries = [
+        Query.equal("userId", user.uid),
+        Query.greaterThanEqual("createdAt", startDate.toISOString()),
+        Query.orderDesc("createdAt"),
+        Query.limit(1000),
+        ...(endDate ? [Query.lessThanEqual("createdAt", endDate.toISOString())] : []),
+      ];
 
-      // Carregar TODO o invent√°rio (incluindo zerados) para resolver marca de itens antigos
-      const invSnap = await getDocs(collection(db, "users", user.uid, "inventory"));
-      const invById = new Map<string, string>();   // inventoryId √¢‚Ä†‚Äô brand
-      const invByName = new Map<string, string>(); // productName.lower √¢‚Ä†‚Äô brand
-      invSnap.docs.forEach(d => {
-        const data = d.data() as { brand?: string; productName?: string };
+      // Carregar TODO o inventario (incluindo zerados) para resolver marca de itens antigos
+      const invRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
+        Query.equal("userId", user.uid),
+        Query.limit(1000),
+      ]);
+      const invById = new Map<string, string>();
+      const invByName = new Map<string, string>();
+      invRes.documents.forEach(d => {
+        const data = d as unknown as { brand?: string; productName?: string };
         if (data.brand) {
-          invById.set(d.id, data.brand);
+          invById.set(d.$id, data.brand);
           if (data.productName) invByName.set(data.productName.toLowerCase(), data.brand);
         }
       });
 
-      const snap = await getDocs(q);
+      const salesRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.SALES, salesQueries);
 
       // Agrupar por marca
       const map = new Map<string, BrandSummary>();
 
-      for (const d of snap.docs) {
-        const sale = d.data() as Sale;
-        for (const item of (sale.items ?? []) as SaleItem[]) {
-          // 1√Ç¬∫: campo brand no item (vendas novas)
-          // 2√Ç¬∫: busca pelo inventoryId (vendas antigas com estoque ainda existente)
-          // 3√Ç¬∫: busca pelo productId (mesmo que inventoryId no seed)
-          // 4√Ç¬∫: busca pelo productName (fallback para itens deletados do estoque)
-          // 5√Ç¬∫: "Outra" como √∫ltimo recurso
+      for (const d of salesRes.documents) {
+        const sale = d as unknown as Sale;
+        const items = typeof sale.items === "string" ? JSON.parse(sale.items || "[]") : (sale.items ?? []);
+        for (const item of items as SaleItem[]) {
           const brand =
             (item as any).brand ||
             (item.inventoryId ? invById.get(item.inventoryId) : undefined) ||
@@ -152,12 +144,13 @@ export default function CommissionPage({ user }: { user: User }) {
       }
 
       // Fallback sem marca
-      if (map.size === 0 && snap.size > 0) {
+      if (map.size === 0 && salesRes.total > 0) {
         let totalRev = 0, totalCost = 0;
-        for (const d of snap.docs) {
-          const sale = d.data() as Sale;
+        for (const d of salesRes.documents) {
+          const sale = d as unknown as Sale;
+          const items = typeof sale.items === "string" ? JSON.parse(sale.items || "[]") : (sale.items ?? []);
           totalRev += sale.totalCents ?? 0;
-          totalCost += (sale.items ?? []).reduce((s: number, i: any) =>
+          totalCost += items.reduce((s: number, i: any) =>
             s + (i.unitCostCents ?? 0) * (i.quantity ?? 0), 0);
         }
         map.set("Geral", {
@@ -165,11 +158,10 @@ export default function CommissionPage({ user }: { user: User }) {
           revenue: totalRev,
           cost: totalCost,
           commission: totalRev - totalCost,
-          salesCount: snap.size,
+          salesCount: salesRes.total,
           marginPct: getConfiguredMargin("Natura", margins),
         });
       }
-
       setSummaries(Array.from(map.values()).sort((a, b) => b.commission - a.commission));
       setLoading(false);
     }
@@ -194,19 +186,19 @@ export default function CommissionPage({ user }: { user: User }) {
 
   const totalCommission = summaries.reduce((s, b) => s + b.commission, 0);
   const totalRevenue = summaries.reduce((s, b) => s + b.revenue, 0);
-  const periodLabel = period === "month" ? "Este m√™s"
-    : period === "last30" ? "√öltimos 30 dias"
+  const periodLabel = period === "month" ? "Este mÍs"
+    : period === "last30" ? "⁄ltimos 30 dias"
     : period === "custom" ? `${MONTH_NAMES[customMonth]}/${customYear}`
-    : "Todo per√≠odo";
+    : "Todo perÌodo";
 
   return (
-    <DashboardLayout title="Comiss√£o & Ganhos">
+    <DashboardLayout title="Comiss„o & Ganhos">
       <div className="space-y-6 animate-fade-in">
 
         {/* Header com total */}
         <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 flex items-center justify-between">
           <div>
-            <div className="text-xs font-medium text-teal-600">Comiss√£o total</div>
+            <div className="text-xs font-medium text-teal-600">Comiss„o total</div>
             <div className="text-3xl font-bold text-teal-700">{formatMoney(totalCommission)}</div>
             <div className="text-xs text-teal-500 mt-0.5">{periodLabel}</div>
           </div>
@@ -219,7 +211,7 @@ export default function CommissionPage({ user }: { user: User }) {
           </div>
         </div>
 
-        {/* Filtro de per√≠odo */}
+        {/* Filtro de perÌodo */}
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             {(["month", "last30", "all"] as Period[]).map(p => (
@@ -232,7 +224,7 @@ export default function CommissionPage({ user }: { user: User }) {
                     : "bg-white text-gray-600 border-slate-200 hover:border-brand-600 hover:text-brand-700"
                 }`}
               >
-                {p === "month" ? "Este m√™s" : p === "last30" ? "30 dias" : "Tudo"}
+                {p === "month" ? "Este mÍs" : p === "last30" ? "30 dias" : "Tudo"}
               </button>
             ))}
             <button
@@ -243,14 +235,14 @@ export default function CommissionPage({ user }: { user: User }) {
                   : "bg-white text-gray-600 border-slate-200 hover:border-brand-600 hover:text-brand-700"
               }`}
             >
-              üìÖ Escolher m√™s
+              ?? Escolher mÍs
             </button>
           </div>
 
-          {/* Seletor de m√™s/ano */}
+          {/* Seletor de mÍs/ano */}
           {period === "custom" && (
             <div className="flex items-center gap-3 p-4 rounded-2xl bg-brand-50 border border-brand-100 animate-fade-in">
-              <span className="text-sm font-medium text-brand-700">M√™s:</span>
+              <span className="text-sm font-medium text-brand-700">MÍs:</span>
               <select
                 className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 value={customMonth}
@@ -276,19 +268,19 @@ export default function CommissionPage({ user }: { user: User }) {
           )}
         </div>
 
-        {/* Comiss√£o por marca */}
-        <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+        {/* Comiss„o por marca */}
+        <div className="card-brand overflow-hidden">
           <div className="px-5 py-4 border-b bg-slate-50">
-            <h2 className="text-base font-semibold text-gray-800">Comiss√£o por Marca</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Quanto voc√™ ganhou de cada marca no per√≠odo</p>
+            <h2 className="text-base font-semibold text-gray-800">Comiss„o por Marca</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Quanto vocÍ ganhou de cada marca no perÌodo</p>
           </div>
 
           {loading ? (
-            <div className="p-8 text-center text-sm text-gray-400">Calculando√¢‚Ç¨¬¶</div>
+            <div className="p-8 text-center text-sm text-gray-400">Calculando‚Ä¶</div>
           ) : summaries.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-400">
-              Nenhuma venda registrada no per√≠odo.<br />
-              <span className="text-xs">Registre vendas para ver sua comiss√£o aqui.</span>
+              Nenhuma venda registrada no perÌodo.<br />
+              <span className="text-xs">Registre vendas para ver sua comiss„o aqui.</span>
             </div>
           ) : (
             <div className="divide-y divide-slate-50">
@@ -304,7 +296,7 @@ export default function CommissionPage({ user }: { user: User }) {
                         <div>
                           <div className="font-semibold text-gray-900">{b.brand}</div>
                           <div className="text-xs text-gray-500">
-                            {b.salesCount} item{b.salesCount !== 1 ? "s" : ""} vendido{b.salesCount !== 1 ? "s" : ""} √¢‚Ç¨¬¢
+                            {b.salesCount} item{b.salesCount !== 1 ? "s" : ""} vendido{b.salesCount !== 1 ? "s" : ""} ‚Ä¢
                             margem {b.marginPct}%
                           </div>
                         </div>
@@ -332,17 +324,17 @@ export default function CommissionPage({ user }: { user: User }) {
 
           {summaries.length > 0 && (
             <div className="px-5 py-4 bg-teal-50 border-t border-teal-100 flex justify-between items-center">
-              <div className="text-sm font-semibold text-teal-800">Total de comiss√µes</div>
+              <div className="text-sm font-semibold text-teal-800">Total de comissıes</div>
               <div className="text-xl font-bold text-teal-700">{formatMoney(totalCommission)}</div>
             </div>
           )}
         </div>
 
-        {/* Calculadora de comiss√£o */}
-        <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-5">
-          <h2 className="text-base font-semibold text-gray-800 mb-1">Calculadora de Comiss√£o</h2>
+        {/* Calculadora de comiss„o */}
+        <div className="card-brand p-5">
+          <h2 className="text-base font-semibold text-gray-800 mb-1">Calculadora de Comiss„o</h2>
           <p className="text-xs text-gray-500 mb-4">
-            Digite o pre√ßo de custo e veja quanto voc√™ vai ganhar
+            Digite o preÁo de custo e veja quanto vocÍ vai ganhar
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -358,7 +350,7 @@ export default function CommissionPage({ user }: { user: User }) {
             </div>
 
             <div>
-              <label className="inp-label">Pre√ßo de custo (R$)</label>
+              <label className="inp-label">PreÁo de custo (R$)</label>
               <input
                 type="number"
                 step="0.01"
@@ -372,8 +364,8 @@ export default function CommissionPage({ user }: { user: User }) {
 
             <div className="sm:col-span-2">
               <label className="inp-label">
-                Pre√ßo de venda (R$)
-                <span className="text-gray-400 font-normal ml-1">√¢‚Ç¨‚Äù opcional, deixe vazio para usar o sugerido</span>
+                PreÁo de venda (R$)
+                <span className="text-gray-400 font-normal ml-1">‚Äî opcional, deixe vazio para usar o sugerido</span>
               </label>
               <input
                 type="number"
@@ -395,12 +387,12 @@ export default function CommissionPage({ user }: { user: User }) {
             <>
               <div className="mt-4 grid grid-cols-3 gap-3">
                 <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-center">
-                  <div className="text-xs text-gray-500 mb-1">Pre√ßo sugerido</div>
+                  <div className="text-xs text-gray-500 mb-1">PreÁo sugerido</div>
                   <div className="text-xl font-bold text-gray-900">{formatMoney(suggestedPrice)}</div>
                   <div className="text-xs text-gray-400 mt-0.5">{activeBrand}</div>
                 </div>
                 <div className="rounded-xl bg-green-50 border border-green-100 p-4 text-center">
-                  <div className="text-xs text-green-600 mb-1">Sua comiss√£o</div>
+                  <div className="text-xs text-green-600 mb-1">Sua comiss„o</div>
                   <div className="text-xl font-bold text-green-700">
                     {formatMoney(calcCommission > 0 ? calcCommission : 0)}
                   </div>
@@ -409,14 +401,14 @@ export default function CommissionPage({ user }: { user: User }) {
                 <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-center">
                   <div className="text-xs text-blue-600 mb-1">Custo</div>
                   <div className="text-xl font-bold text-blue-700">{formatMoney(calcCostCents)}</div>
-                  <div className="text-xs text-blue-400 mt-0.5">voc√™ pagou</div>
+                  <div className="text-xs text-blue-400 mt-0.5">vocÍ pagou</div>
                 </div>
               </div>
 
               <div className="mt-3 rounded-xl bg-teal-50 border border-teal-100 p-3 text-xs text-teal-700">
-                √∞≈∏‚Äô¬° Vendendo <strong>{activeBrand}</strong> com {calcMargin}% de margem:
+                üí° Vendendo <strong>{activeBrand}</strong> com {calcMargin}% de margem:
                 para cada <strong>{formatMoney(calcCostCents)}</strong> investido,
-                voc√™ recebe <strong>{formatMoney(calcCommission > 0 ? calcCommission : 0)}</strong> de comiss√£o.
+                vocÍ recebe <strong>{formatMoney(calcCommission > 0 ? calcCommission : 0)}</strong> de comiss„o.
               </div>
             </>
           )}
@@ -426,4 +418,5 @@ export default function CommissionPage({ user }: { user: User }) {
     </DashboardLayout>
   );
 }
+
 

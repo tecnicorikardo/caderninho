@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "browser-image-compression": "^2.0.2",
+    "appwrite": "^25.0.0",
+    "browser-image-compression": "2.0.2",
     "exceljs": "^4.4.0",
     "firebase": "^10.12.5",
     "react": "^18.3.1",

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { account } from "@/lib/appwrite";
 import { ensureUserProfile } from "@/lib/profile";
+import { applyTheme } from "@/lib/theme";
 import LoginPage from "@/pages/LoginPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -13,25 +13,50 @@ import SalesPage from "@/pages/SalesPage";
 import CommissionPage from "@/pages/CommissionPage";
 import ReceivablesPage from "@/pages/ReceivablesPage";
 import FinancialReportPage from "@/pages/FinancialReportPage";
+import type { UserProfile } from "@/lib/types";
+
+// Tipo de usuário compatível com Appwrite
+export type AppUser = {
+  uid: string;
+  email: string;
+};
 
 type SessionState =
   | { status: "loading" }
   | { status: "signed_out" }
-  | { status: "signed_in"; user: User; onboarded: boolean };
+  | { status: "signed_in"; user: AppUser; onboarded: boolean };
 
 export default function App() {
   const [state, setState] = useState<SessionState>({ status: "loading" });
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setState({ status: "signed_out" });
-        return;
+    let active = true;
+
+    async function checkSession() {
+      try {
+        const user = await account.get();
+        if (!active) return;
+
+        const appUser: AppUser = { uid: user.$id, email: user.email };
+        const profile = await ensureUserProfile(user.$id);
+
+        if (!active) return;
+
+        if ((profile as UserProfile).themeColor) {
+          applyTheme((profile as UserProfile).themeColor!);
+        }
+        setState({
+          status: "signed_in",
+          user: appUser,
+          onboarded: Boolean(profile.onboardedAt),
+        });
+      } catch {
+        if (active) setState({ status: "signed_out" });
       }
-      const profile = await ensureUserProfile(user.uid);
-      setState({ status: "signed_in", user, onboarded: Boolean(profile.onboardedAt) });
-    });
-    return () => unsub();
+    }
+
+    checkSession();
+    return () => { active = false; };
   }, []);
 
   const rootView = useMemo(() => {
@@ -45,7 +70,9 @@ export default function App() {
         </div>
       );
     }
-    if (state.status === "signed_out") return <LoginPage />;
+    if (state.status === "signed_out") {
+      return <LoginPage onLogin={(user) => setState({ status: "signed_in", user, onboarded: false })} />;
+    }
     if (!state.onboarded) {
       return (
         <OnboardingPage

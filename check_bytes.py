@@ -1,0 +1,5 @@
+﻿raw = open('web/src/pages/SalesPage.tsx','rb').read()
+idx = raw.find(b'Cliente ')
+print('bytes around Cliente:', raw[idx+8:idx+20].hex())
+idx2 = raw.find(b'opcional')
+print('bytes before opcional:', raw[idx2-10:idx2].hex())

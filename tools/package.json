@@ -1,0 +1,16 @@
+{
+  "name": "bloquinho-migration-tools",
+  "version": "1.0.0",
+  "description": "Scripts de migração Firebase → Appwrite",
+  "private": true,
+  "scripts": {
+    "setup": "node setup-appwrite-collections.js",
+    "migrate": "node migrate-to-appwrite.js",
+    "full-migration": "npm run setup && npm run migrate"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "node-appwrite": "^13.0.0",
+    "dotenv": "^16.4.5"
+  }
+}
