@@ -1,8 +1,8 @@
-/**
- * Página de Comissão por Marca
- * Mostra quanto a revendedora ganhou de comissão por marca no período
- * e uma calculadora interativa de preço/comissão.
- * Usa as margens configuradas pela usuária em Configurações.
+ï»¿/**
+ * Pagina de Comissao por Marca
+ * Mostra quanto a revendedora ganhou de comissao por marca no periodo
+ * e uma calculadora interativa de preco/comissao.
+ * Usa as margens configuradas pela usuaria em Configuracoes.
  */
 import { useEffect, useState } from "react";
 import type { AppUser } from "@/App";
@@ -10,7 +10,7 @@ import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
 import DashboardLayout from "@/ui/DashboardLayout";
 import { formatMoney, toCents } from "@/lib/money";
 import { getConfiguredMargin, calculatePriceFromConfigured } from "@/lib/margins";
-import type { Sale, SaleItem, UserProfile, BrandMargin } from "@/lib/types";
+import type { Sale, SaleItem, BrandMargin } from "@/lib/types";
 
 const DEFAULT_BRANDS: BrandMargin[] = [
   { brand: "Natura", marginPercent: 30 },
@@ -37,9 +37,8 @@ export default function CommissionPage({ user }: { user: AppUser }) {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("month");
 
-  // Seletor de mês/ano customizado
   const now = new Date();
-  const [customMonth, setCustomMonth] = useState(now.getMonth()); // 0-11
+  const [customMonth, setCustomMonth] = useState(now.getMonth());
   const [customYear, setCustomYear] = useState(now.getFullYear());
 
   // Calculadora
@@ -48,14 +47,12 @@ export default function CommissionPage({ user }: { user: AppUser }) {
   const [calcSelling, setCalcSelling] = useState("");
   const [calcMode, setCalcMode] = useState<"fromCost" | "fromSelling">("fromCost");
 
-  // Anos disponíveis (últimos 5 anos)
   const availableYears = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
 
-      // Carregar margens configuradas
       const profileRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
         Query.equal("userId", user.uid),
         Query.limit(1),
@@ -68,7 +65,6 @@ export default function CommissionPage({ user }: { user: AppUser }) {
       setBrandMargins(margins);
       if (!calcBrand && margins.length > 0) setCalcBrand(margins[0].brand);
 
-      // Período
       const now = new Date();
       let startDate: Date;
       let endDate: Date | null = null;
@@ -92,7 +88,6 @@ export default function CommissionPage({ user }: { user: AppUser }) {
         ...(endDate ? [Query.lessThanEqual("createdAt", endDate.toISOString())] : []),
       ];
 
-      // Carregar TODO o inventario (incluindo zerados) para resolver marca de itens antigos
       const invRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
         Query.equal("userId", user.uid),
         Query.limit(1000),
@@ -109,7 +104,6 @@ export default function CommissionPage({ user }: { user: AppUser }) {
 
       const salesRes = await databases.listDocuments(DATABASE_ID, COLLECTIONS.SALES, salesQueries);
 
-      // Agrupar por marca
       const map = new Map<string, BrandSummary>();
 
       for (const d of salesRes.documents) {
@@ -143,7 +137,6 @@ export default function CommissionPage({ user }: { user: AppUser }) {
         }
       }
 
-      // Fallback sem marca
       if (map.size === 0 && salesRes.total > 0) {
         let totalRev = 0, totalCost = 0;
         for (const d of salesRes.documents) {
@@ -168,7 +161,6 @@ export default function CommissionPage({ user }: { user: AppUser }) {
     load().catch(() => setLoading(false));
   }, [user.uid, period, customMonth, customYear]);
 
-  // Calculadora
   const activeBrand = calcBrand || (brandMargins[0]?.brand ?? "");
   const calcCostCents = toCents(calcCost);
   const calcSellingCents = toCents(calcSelling);
@@ -186,19 +178,19 @@ export default function CommissionPage({ user }: { user: AppUser }) {
 
   const totalCommission = summaries.reduce((s, b) => s + b.commission, 0);
   const totalRevenue = summaries.reduce((s, b) => s + b.revenue, 0);
-  const periodLabel = period === "month" ? "Este mês"
-    : period === "last30" ? "Últimos 30 dias"
+  const periodLabel = period === "month" ? "Este mes"
+    : period === "last30" ? "Ultimos 30 dias"
     : period === "custom" ? `${MONTH_NAMES[customMonth]}/${customYear}`
-    : "Todo período";
+    : "Todo periodo";
 
   return (
-    <DashboardLayout title="Comissão & Ganhos">
+    <DashboardLayout title="Comissao e Ganhos">
       <div className="space-y-6 animate-fade-in">
 
         {/* Header com total */}
         <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 flex items-center justify-between">
           <div>
-            <div className="text-xs font-medium text-teal-600">Comissão total</div>
+            <div className="text-xs font-medium text-teal-600">Comissao total</div>
             <div className="text-3xl font-bold text-teal-700">{formatMoney(totalCommission)}</div>
             <div className="text-xs text-teal-500 mt-0.5">{periodLabel}</div>
           </div>
@@ -211,7 +203,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           </div>
         </div>
 
-        {/* Filtro de período */}
+        {/* Filtro de periodo */}
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             {(["month", "last30", "all"] as Period[]).map(p => (
@@ -220,31 +212,30 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                 onClick={() => setPeriod(p)}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border ${
                   period === p
-                    ? "bg-brand-700 text-white border-brand-700 shadow-sm"
-                    : "bg-white text-gray-600 border-slate-200 hover:border-brand-600 hover:text-brand-700"
+                    ? "bg-teal-600 text-white border-teal-600 shadow-sm"
+                    : "bg-white text-gray-600 border-slate-200 hover:border-teal-400 hover:text-teal-700"
                 }`}
               >
-                {p === "month" ? "Este mês" : p === "last30" ? "30 dias" : "Tudo"}
+                {p === "month" ? "Este mes" : p === "last30" ? "30 dias" : "Tudo"}
               </button>
             ))}
             <button
               onClick={() => setPeriod("custom")}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border ${
                 period === "custom"
-                  ? "bg-brand-700 text-white border-brand-700 shadow-sm"
-                  : "bg-white text-gray-600 border-slate-200 hover:border-brand-600 hover:text-brand-700"
+                  ? "bg-teal-600 text-white border-teal-600 shadow-sm"
+                  : "bg-white text-gray-600 border-slate-200 hover:border-teal-400 hover:text-teal-700"
               }`}
             >
-              ?? Escolher mês
+              Escolher mes
             </button>
           </div>
 
-          {/* Seletor de mês/ano */}
           {period === "custom" && (
-            <div className="flex items-center gap-3 p-4 rounded-2xl bg-brand-50 border border-brand-100 animate-fade-in">
-              <span className="text-sm font-medium text-brand-700">Mês:</span>
+            <div className="flex items-center gap-3 p-4 rounded-2xl bg-teal-50 border border-teal-100">
+              <span className="text-sm font-medium text-teal-700">Mes:</span>
               <select
-                className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="rounded-xl border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 value={customMonth}
                 onChange={e => setCustomMonth(Number(e.target.value))}
               >
@@ -253,7 +244,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                 ))}
               </select>
               <select
-                className="rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="rounded-xl border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 value={customYear}
                 onChange={e => setCustomYear(Number(e.target.value))}
               >
@@ -261,26 +252,26 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
-              <span className="text-sm text-brand-600 font-semibold">
+              <span className="text-sm text-teal-600 font-semibold">
                 {MONTH_NAMES[customMonth]}/{customYear}
               </span>
             </div>
           )}
         </div>
 
-        {/* Comissão por marca */}
+        {/* Comissao por marca */}
         <div className="card-brand overflow-hidden">
           <div className="px-5 py-4 border-b bg-slate-50">
-            <h2 className="text-base font-semibold text-gray-800">Comissão por Marca</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Quanto você ganhou de cada marca no período</p>
+            <h2 className="text-base font-semibold text-gray-800">Comissao por Marca</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Quanto voce ganhou de cada marca no periodo</p>
           </div>
 
           {loading ? (
-            <div className="p-8 text-center text-sm text-gray-400">Calculandoâ€¦</div>
+            <div className="p-8 text-center text-sm text-gray-400">Calculando...</div>
           ) : summaries.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-400">
-              Nenhuma venda registrada no período.<br />
-              <span className="text-xs">Registre vendas para ver sua comissão aqui.</span>
+              Nenhuma venda registrada no periodo.<br />
+              <span className="text-xs">Registre vendas para ver sua comissao aqui.</span>
             </div>
           ) : (
             <div className="divide-y divide-slate-50">
@@ -296,8 +287,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                         <div>
                           <div className="font-semibold text-gray-900">{b.brand}</div>
                           <div className="text-xs text-gray-500">
-                            {b.salesCount} item{b.salesCount !== 1 ? "s" : ""} vendido{b.salesCount !== 1 ? "s" : ""} â€¢
-                            margem {b.marginPct}%
+                            {b.salesCount} item{b.salesCount !== 1 ? "s" : ""} vendido{b.salesCount !== 1 ? "s" : ""} &bull; margem {b.marginPct}%
                           </div>
                         </div>
                       </div>
@@ -324,17 +314,17 @@ export default function CommissionPage({ user }: { user: AppUser }) {
 
           {summaries.length > 0 && (
             <div className="px-5 py-4 bg-teal-50 border-t border-teal-100 flex justify-between items-center">
-              <div className="text-sm font-semibold text-teal-800">Total de comissões</div>
+              <div className="text-sm font-semibold text-teal-800">Total de comissoes</div>
               <div className="text-xl font-bold text-teal-700">{formatMoney(totalCommission)}</div>
             </div>
           )}
         </div>
 
-        {/* Calculadora de comissão */}
+        {/* Calculadora de comissao */}
         <div className="card-brand p-5">
-          <h2 className="text-base font-semibold text-gray-800 mb-1">Calculadora de Comissão</h2>
+          <h2 className="text-base font-semibold text-gray-800 mb-1">Calculadora de Comissao</h2>
           <p className="text-xs text-gray-500 mb-4">
-            Digite o preço de custo e veja quanto você vai ganhar
+            Digite o preco de custo e veja quanto voce vai ganhar
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -350,7 +340,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
             </div>
 
             <div>
-              <label className="inp-label">Preço de custo (R$)</label>
+              <label className="inp-label">Preco de custo (R$)</label>
               <input
                 type="number"
                 step="0.01"
@@ -364,7 +354,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
 
             <div className="sm:col-span-2">
               <label className="inp-label">
-                Preço de venda (R$)
+                Preco de venda (R$)
                 <span className="text-gray-400 font-normal ml-1">â€” opcional, deixe vazio para usar o sugerido</span>
               </label>
               <input
@@ -382,17 +372,16 @@ export default function CommissionPage({ user }: { user: AppUser }) {
             </div>
           </div>
 
-          {/* Resultado */}
           {calcCostCents > 0 && (
             <>
               <div className="mt-4 grid grid-cols-3 gap-3">
                 <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-center">
-                  <div className="text-xs text-gray-500 mb-1">Preço sugerido</div>
+                  <div className="text-xs text-gray-500 mb-1">Preco sugerido</div>
                   <div className="text-xl font-bold text-gray-900">{formatMoney(suggestedPrice)}</div>
                   <div className="text-xs text-gray-400 mt-0.5">{activeBrand}</div>
                 </div>
                 <div className="rounded-xl bg-green-50 border border-green-100 p-4 text-center">
-                  <div className="text-xs text-green-600 mb-1">Sua comissão</div>
+                  <div className="text-xs text-green-600 mb-1">Sua comissao</div>
                   <div className="text-xl font-bold text-green-700">
                     {formatMoney(calcCommission > 0 ? calcCommission : 0)}
                   </div>
@@ -401,14 +390,14 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                 <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-center">
                   <div className="text-xs text-blue-600 mb-1">Custo</div>
                   <div className="text-xl font-bold text-blue-700">{formatMoney(calcCostCents)}</div>
-                  <div className="text-xs text-blue-400 mt-0.5">você pagou</div>
+                  <div className="text-xs text-blue-400 mt-0.5">voce pagou</div>
                 </div>
               </div>
 
               <div className="mt-3 rounded-xl bg-teal-50 border border-teal-100 p-3 text-xs text-teal-700">
-                ðŸ’¡ Vendendo <strong>{activeBrand}</strong> com {calcMargin}% de margem:
+                Vendendo <strong>{activeBrand}</strong> com {calcMargin}% de margem:
                 para cada <strong>{formatMoney(calcCostCents)}</strong> investido,
-                você recebe <strong>{formatMoney(calcCommission > 0 ? calcCommission : 0)}</strong> de comissão.
+                voce recebe <strong>{formatMoney(calcCommission > 0 ? calcCommission : 0)}</strong> de comissao.
               </div>
             </>
           )}
@@ -418,5 +407,3 @@ export default function CommissionPage({ user }: { user: AppUser }) {
     </DashboardLayout>
   );
 }
-
-
