@@ -16,38 +16,34 @@ function userPerms(uid: string) {
 }
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-async function upsertCustomer(uid: string, phoneNormalized: string, data: Record<string, unknown>) {
-  const existing = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
-    Query.equal("userId", uid),
-    Query.equal("phoneNormalized", phoneNormalized),
-    Query.limit(1),
-  ]);
-  if (existing.documents.length > 0) {
-    const { userId: _u, createdAt: _c, ...updateData } = data;
-    await databases.updateDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, existing.documents[0].$id, {
-      ...updateData,
-      updatedAt: nowISO(),
-    });
-  } else {
-    await databases.createDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, ID.unique(), data, userPerms(uid));
+// Busca TODOS os clientes de uma vez — evita N queries durante a importação
+async function fetchExistingCustomers(uid: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>(); // phoneNormalized → $id
+  let offset = 0;
+  while (true) {
+    const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
+      Query.equal("userId", uid), Query.limit(100), Query.offset(offset),
+    ]);
+    res.documents.forEach(d => map.set(d.phoneNormalized as string, d.$id));
+    if (res.documents.length < 100) break;
+    offset += 100;
   }
+  return map;
 }
 
-async function upsertInventory(uid: string, invId: string, data: Record<string, unknown>) {
-  const existing = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
-    Query.equal("userId", uid),
-    Query.equal("productId", data.productId as string),
-    Query.limit(1),
-  ]);
-  if (existing.documents.length > 0) {
-    const { userId: _u, createdAt: _c, ...updateData } = data;
-    await databases.updateDocument(DATABASE_ID, COLLECTIONS.INVENTORY, existing.documents[0].$id, {
-      ...updateData,
-      updatedAt: nowISO(),
-    });
-  } else {
-    await databases.createDocument(DATABASE_ID, COLLECTIONS.INVENTORY, ID.unique(), data, userPerms(uid));
+// Busca TODOS os itens de inventário de uma vez
+async function fetchExistingInventory(uid: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>(); // productId → $id
+  let offset = 0;
+  while (true) {
+    const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
+      Query.equal("userId", uid), Query.limit(100), Query.offset(offset),
+    ]);
+    res.documents.forEach(d => map.set(d.productId as string, d.$id));
+    if (res.documents.length < 100) break;
+    offset += 100;
   }
+  return map;
 }
 
 export function downloadTemplate() {
@@ -149,25 +145,12 @@ export async function importFromWorkbook(
   const now = nowISO();
   let custCount = 0, prodCount = 0;
 
-  // Lotes de 3 com delay de 400ms entre lotes para respeitar rate limit do Appwrite free tier
-  async function runInBatches<T>(
-    items: T[],
-    batchSize: number,
-    label: string,
-    fn: (item: T) => Promise<void>
-  ) {
-    let done = 0;
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
-      await Promise.all(batch.map(async (item) => {
-        await fn(item);
-        done++;
-        onProgress?.(label, done, items.length);
-      }));
-      // Pausa entre lotes para não estourar o rate limit
-      if (i + batchSize < items.length) await delay(400);
-    }
-  }
+  // Busca dados existentes de uma vez (2 queries totais, não N queries)
+  onProgress?.("Verificando dados existentes…", 0, 1);
+  const [existingCustomers, existingInventory] = await Promise.all([
+    fetchExistingCustomers(uid),
+    fetchExistingInventory(uid),
+  ]);
 
   if (wb.Sheets["Clientes"]) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets["Clientes"], { header: 1 }) as unknown[][];
@@ -184,23 +167,34 @@ export async function importFromWorkbook(
       return r.some(c => getCellString(c)) && name && phone;
     });
 
-    await runInBatches(validRows, 3, "Importando clientes…", async (r) => {
+    for (let i = 0; i < validRows.length; i++) {
+      const r = validRows[i];
       const name = getCellString(r[ni]);
       const phone = getCellString(r[pi]);
       const phoneNormalized = phone.replace(/\D/g, "");
-      await upsertCustomer(uid, phoneNormalized, {
-        userId: uid,
-        name,
-        phone,
-        phoneNormalized,
-        email: getCellString(r[ei]) || null,
-        address: getCellString(r[ai]) || null,
-        balanceCents: 0,
-        createdAt: now,
-        updatedAt: now,
-      });
+
+      const existingId = existingCustomers.get(phoneNormalized);
+      if (existingId) {
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, existingId, {
+          name, phone, phoneNormalized,
+          email: getCellString(r[ei]) || null,
+          address: getCellString(r[ai]) || null,
+          updatedAt: now,
+        });
+      } else {
+        await databases.createDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, ID.unique(), {
+          userId: uid, name, phone, phoneNormalized,
+          email: getCellString(r[ei]) || null,
+          address: getCellString(r[ai]) || null,
+          balanceCents: 0, createdAt: now, updatedAt: now,
+        }, userPerms(uid));
+      }
+
       custCount++;
-    });
+      onProgress?.("Importando clientes…", custCount, validRows.length);
+      // Delay entre cada inserção para respeitar rate limit
+      await delay(150);
+    }
   }
 
   if (wb.Sheets["Produtos"]) {
@@ -222,7 +216,8 @@ export async function importFromWorkbook(
       return r.some(c => getCellString(c)) && name && brand && qty;
     });
 
-    await runInBatches(validRows, 3, "Importando produtos…", async (r) => {
+    for (let i = 0; i < validRows.length; i++) {
+      const r = validRows[i];
       const name = getCellString(r[ni]);
       const brand = getCellString(r[bi]);
       const qty = Number(r[qi]);
@@ -234,23 +229,28 @@ export async function importFromWorkbook(
       const costCents = toCents(r[ci]);
       const sellCents = toCents(r[si]);
       const productId = `p_${stableHash(`${brand}|${code}|${name}`.toLowerCase())}`;
-      const invId = `i_${stableHash(`${productId}|${expiryRaw}|${qty}|${costCents}|${sellCents}`)}`;
 
-      await upsertInventory(uid, invId, {
-        userId: uid,
-        productId,
-        sku: code || null,
-        productName: name,
-        brand,
-        quantity: qty,
-        costPriceCents: costCents,
-        sellingPriceCents: sellCents,
-        expiryDate,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const existingId = existingInventory.get(productId);
+      if (existingId) {
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.INVENTORY, existingId, {
+          productName: name, brand, quantity: qty,
+          costPriceCents: costCents, sellingPriceCents: sellCents,
+          expiryDate, sku: code || null, updatedAt: now,
+        });
+      } else {
+        await databases.createDocument(DATABASE_ID, COLLECTIONS.INVENTORY, ID.unique(), {
+          userId: uid, productId, sku: code || null,
+          productName: name, brand, quantity: qty,
+          costPriceCents: costCents, sellingPriceCents: sellCents,
+          expiryDate, createdAt: now, updatedAt: now,
+        }, userPerms(uid));
+      }
+
       prodCount++;
-    });
+      onProgress?.("Importando produtos…", prodCount, validRows.length);
+      // Delay entre cada inserção para respeitar rate limit
+      await delay(150);
+    }
   }
 
   return { customers: custCount, products: prodCount };
