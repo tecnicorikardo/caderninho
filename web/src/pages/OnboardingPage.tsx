@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useState, useEffect } from "react";
 import type { AppUser } from "@/App";
 import { markOnboarded } from "@/lib/profile";
 import { downloadWorkbookTemplate } from "@/lib/templates";
@@ -8,6 +8,14 @@ const ImportWizard = lazy(() => import("@/pages/components/ImportWizard"));
 export default function OnboardingPage({ user, onDone }: { user: AppUser; onDone: () => void }) {
   const [mode, setMode] = useState<"choose" | "import" | "zero">("choose");
   const [busy, setBusy] = useState(false);
+
+  // Se o usuário já passou pelo onboarding (localStorage), pula direto
+  useEffect(() => {
+    const alreadyOnboarded = localStorage.getItem(`onboarded_${user.uid}`);
+    if (alreadyOnboarded) {
+      onDone();
+    }
+  }, [user.uid, onDone]);
 
   async function startZero() {
     setBusy(true);

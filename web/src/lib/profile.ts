@@ -11,10 +11,13 @@ export async function ensureUserProfile(uid: string): Promise<UserProfile> {
 
     if (res.documents.length > 0) {
       const doc = res.documents[0];
-      // Se o Appwrite não tiver onboardedAt (campo pode não existir no schema),
-      // usa o fallback do localStorage
-      const onboardedAt = doc.onboardedAt ?? localStorage.getItem(`onboarded_${uid}`) ?? null;
-      console.log("[ensureUserProfile] onboardedAt do Appwrite:", doc.onboardedAt, "| localStorage:", localStorage.getItem(`onboarded_${uid}`));
+      // Prioridade: Appwrite → localStorage → null
+      // O localStorage garante que o onboarding não apareça de novo mesmo que
+      // o campo onboardedAt não exista ou não seja salvo no schema do Appwrite
+      const onboardedAt =
+        (doc.onboardedAt as string | null | undefined) ||
+        localStorage.getItem(`onboarded_${uid}`) ||
+        null;
       return {
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -61,32 +64,35 @@ export async function ensureUserProfile(uid: string): Promise<UserProfile> {
   } catch (err) {
     console.error("ensureUserProfile error:", err);
     const now = new Date().toISOString();
-    return { createdAt: now, updatedAt: now, onboardedAt: null };
+    // Mesmo em caso de erro, verifica o localStorage antes de retornar null
+    return {
+      createdAt: now,
+      updatedAt: now,
+      onboardedAt: localStorage.getItem(`onboarded_${uid}`) ?? null,
+    };
   }
 }
 
 export async function markOnboarded(uid: string) {
-  const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
-    Query.equal("userId", uid),
-    Query.limit(1),
-  ]);
-  if (res.documents.length === 0) {
-    console.warn("[markOnboarded] perfil não encontrado para uid:", uid);
-    return;
-  }
+  // Salva no localStorage imediatamente — fonte primária de verdade para o onboarding
   const now = new Date().toISOString();
-  try {
-    const updated = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, res.documents[0].$id, {
-      onboardedAt: now,
-      updatedAt: now,
-    });
-    console.log("[markOnboarded] salvo no Appwrite:", updated.onboardedAt);
-  } catch (err) {
-    console.error("[markOnboarded] erro ao salvar no Appwrite:", err);
-  }
-  // Fallback local para garantir que o onboarding não apareça de novo
-  // mesmo que o campo onboardedAt não exista no schema do Appwrite
   localStorage.setItem(`onboarded_${uid}`, now);
+
+  // Tenta salvar no Appwrite também (best-effort, não bloqueia)
+  try {
+    const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
+      Query.equal("userId", uid),
+      Query.limit(1),
+    ]);
+    if (res.documents.length > 0) {
+      await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, res.documents[0].$id, {
+        onboardedAt: now,
+        updatedAt: now,
+      });
+    }
+  } catch (err) {
+    console.warn("[markOnboarded] não foi possível salvar no Appwrite:", err);
+  }
 }
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
