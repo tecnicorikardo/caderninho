@@ -11,10 +11,14 @@ export async function ensureUserProfile(uid: string): Promise<UserProfile> {
 
     if (res.documents.length > 0) {
       const doc = res.documents[0];
+      // Se o Appwrite não tiver onboardedAt (campo pode não existir no schema),
+      // usa o fallback do localStorage
+      const onboardedAt = doc.onboardedAt ?? localStorage.getItem(`onboarded_${uid}`) ?? null;
+      console.log("[ensureUserProfile] onboardedAt do Appwrite:", doc.onboardedAt, "| localStorage:", localStorage.getItem(`onboarded_${uid}`));
       return {
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
-        onboardedAt: doc.onboardedAt ?? null,
+        onboardedAt,
         growthLevel: doc.growthLevel,
         brandMargins: doc.brandMargins ? JSON.parse(doc.brandMargins) : undefined,
         planStatus: doc.planStatus,
@@ -66,12 +70,23 @@ export async function markOnboarded(uid: string) {
     Query.equal("userId", uid),
     Query.limit(1),
   ]);
-  if (res.documents.length === 0) return;
+  if (res.documents.length === 0) {
+    console.warn("[markOnboarded] perfil não encontrado para uid:", uid);
+    return;
+  }
   const now = new Date().toISOString();
-  await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, res.documents[0].$id, {
-    onboardedAt: now,
-    updatedAt: now,
-  });
+  try {
+    const updated = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, res.documents[0].$id, {
+      onboardedAt: now,
+      updatedAt: now,
+    });
+    console.log("[markOnboarded] salvo no Appwrite:", updated.onboardedAt);
+  } catch (err) {
+    console.error("[markOnboarded] erro ao salvar no Appwrite:", err);
+  }
+  // Fallback local para garantir que o onboarding não apareça de novo
+  // mesmo que o campo onboardedAt não exista no schema do Appwrite
+  localStorage.setItem(`onboarded_${uid}`, now);
 }
 
 export async function updateUserProfile(uid: string, data: Partial<UserProfile>) {
