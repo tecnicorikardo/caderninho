@@ -18,6 +18,7 @@ export async function ensureUserProfile(uid: string): Promise<UserProfile> {
         (doc.onboardedAt as string | null | undefined) ||
         localStorage.getItem(`onboarded_${uid}`) ||
         null;
+      console.log("🔍 [ensureUserProfile] doc.$id =", doc.$id, "| doc.onboardedAt =", doc.onboardedAt, "| localStorage =", localStorage.getItem(`onboarded_${uid}`), "| resultado =", onboardedAt);
       return {
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
@@ -77,6 +78,7 @@ export async function markOnboarded(uid: string) {
   // Salva no localStorage imediatamente — fonte primária de verdade para o onboarding
   const now = new Date().toISOString();
   localStorage.setItem(`onboarded_${uid}`, now);
+  console.log("✅ [markOnboarded] localStorage salvo para uid:", uid);
 
   // Tenta salvar no Appwrite também (best-effort, não bloqueia)
   try {
@@ -85,13 +87,16 @@ export async function markOnboarded(uid: string) {
       Query.limit(1),
     ]);
     if (res.documents.length > 0) {
-      await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, res.documents[0].$id, {
+      const updated = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, res.documents[0].$id, {
         onboardedAt: now,
         updatedAt: now,
       });
+      console.log("✅ [markOnboarded] Appwrite atualizado. onboardedAt retornado:", updated.onboardedAt);
+    } else {
+      console.warn("⚠️ [markOnboarded] nenhum documento encontrado no Appwrite para uid:", uid);
     }
   } catch (err) {
-    console.warn("[markOnboarded] não foi possível salvar no Appwrite:", err);
+    console.error("❌ [markOnboarded] erro ao salvar no Appwrite:", err);
   }
 }
 

@@ -42,6 +42,8 @@ export default function App() {
 
         if (!active) return;
 
+        console.log("🔍 [checkSession] profile.onboardedAt =", profile.onboardedAt, "| onboarded =", Boolean(profile.onboardedAt));
+
         if ((profile as UserProfile).themeColor) {
           applyTheme((profile as UserProfile).themeColor!);
         }
@@ -77,6 +79,7 @@ export default function App() {
             setState({ status: "loading" });
             try {
               const profile = await ensureUserProfile(user.uid);
+              console.log("🔍 [onLogin] profile.onboardedAt =", profile.onboardedAt, "| onboarded =", Boolean(profile.onboardedAt));
               if ((profile as UserProfile).themeColor) {
                 applyTheme((profile as UserProfile).themeColor!);
               }
