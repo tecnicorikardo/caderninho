@@ -8,7 +8,7 @@ import DashboardLayout from "@/ui/DashboardLayout";
 import { formatMoney, toCents } from "@/lib/money";
 import type { InventoryItem } from "@/lib/types";
 import { processImageForStorage, ImageUploadError } from "@/lib/imageUpload";
-import { PLAN_LIMITS, getUserPlan } from "@/lib/plan";
+import { PLAN_LIMITS, usagePercent, usageColor } from "@/lib/plan";
 import PlanLimitBanner from "@/ui/PlanLimitBanner";
 
 type Row = InventoryItem & { $id: string };
@@ -226,9 +226,8 @@ export default function InventoryPage({ user }: { user: AppUser }) {
 
   const activeFiltersCount = (brandFilter ? 1 : 0) + (expiryStatusFilter ? 1 : 0) + (expiryFilter ? 1 : 0);
 
-  // Limites do plano
-  const plan = getUserPlan();
-  const productLimit = PLAN_LIMITS[plan].products;
+  // Limites do plano (pro = ilimitado, free/trial = limitado)
+  const productLimit = PLAN_LIMITS["free"].products;
   const atProductLimit = rows.length >= productLimit;
 
   function clearAllFilters() {

@@ -16,6 +16,7 @@ export type UserProfile = {
   growthLevel?: GrowthLevel;
   brandMargins?: BrandMargin[];
   planStatus?: "free" | "pro";
+  planExpiresAt?: AppTimestamp | null;
   themeColor?: string | null;
 };
 

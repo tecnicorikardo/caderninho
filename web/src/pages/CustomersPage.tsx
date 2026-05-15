@@ -7,7 +7,7 @@ import type { Customer } from "@/lib/types";
 import { buildCustomerHistoryText } from "@/lib/customerHistory";
 import { shareOrWhatsApp } from "@/lib/whatsapp";
 import { formatMoney } from "@/lib/money";
-import { PLAN_LIMITS, getUserPlan } from "@/lib/plan";
+import { PLAN_LIMITS, usagePercent, usageColor } from "@/lib/plan";
 import PlanLimitBanner from "@/ui/PlanLimitBanner";
 
 type Row = Customer & { $id: string };
@@ -96,9 +96,8 @@ export default function CustomersPage({ user }: { user: AppUser }) {
 
   const withBalanceCount = rows.filter(c => (c.balanceCents ?? 0) > 0).length;
 
-  // Limites do plano
-  const plan = getUserPlan();
-  const customerLimit = PLAN_LIMITS[plan].customers;
+  // Limites do plano (pro = ilimitado, free/trial = limitado)
+  const customerLimit = PLAN_LIMITS["free"].customers;
   const atCustomerLimit = rows.length >= customerLimit;
 
   return (

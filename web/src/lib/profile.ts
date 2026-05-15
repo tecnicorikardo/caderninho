@@ -26,6 +26,7 @@ export async function ensureUserProfile(uid: string): Promise<UserProfile> {
         growthLevel: doc.growthLevel,
         brandMargins: doc.brandMargins ? JSON.parse(doc.brandMargins) : undefined,
         planStatus: doc.planStatus,
+        planExpiresAt: doc.planExpiresAt ?? null,
         themeColor: doc.themeColor,
       };
     }

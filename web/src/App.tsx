@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { account } from "@/lib/appwrite";
 import { ensureUserProfile } from "@/lib/profile";
 import { applyTheme } from "@/lib/theme";
+import { getEffectivePlan, trialDaysLeft } from "@/lib/plan";
 import LoginPage from "@/pages/LoginPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -13,9 +14,12 @@ import SalesPage from "@/pages/SalesPage";
 import CommissionPage from "@/pages/CommissionPage";
 import ReceivablesPage from "@/pages/ReceivablesPage";
 import FinancialReportPage from "@/pages/FinancialReportPage";
+import PlansPage from "@/pages/PlansPage";
+import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
+import PlanGate from "@/ui/PlanGate";
 import type { UserProfile } from "@/lib/types";
+import type { PlanStatus } from "@/lib/plan";
 
-// Tipo de usuário compatível com Appwrite
 export type AppUser = {
   uid: string;
   email: string;
@@ -24,7 +28,7 @@ export type AppUser = {
 type SessionState =
   | { status: "loading" }
   | { status: "signed_out" }
-  | { status: "signed_in"; user: AppUser; onboarded: boolean };
+  | { status: "signed_in"; user: AppUser; onboarded: boolean; profile: UserProfile; plan: PlanStatus };
 
 export default function App() {
   const [state, setState] = useState<SessionState>({ status: "loading" });
@@ -42,15 +46,14 @@ export default function App() {
 
         if (!active) return;
 
-        console.log("🔍 [checkSession] profile.onboardedAt =", profile.onboardedAt, "| onboarded =", Boolean(profile.onboardedAt));
+        if (profile.themeColor) applyTheme(profile.themeColor as string);
 
-        if ((profile as UserProfile).themeColor) {
-          applyTheme((profile as UserProfile).themeColor!);
-        }
         setState({
           status: "signed_in",
           user: appUser,
           onboarded: Boolean(profile.onboardedAt),
+          profile,
+          plan: getEffectivePlan(profile),
         });
       } catch {
         if (active) setState({ status: "signed_out" });
@@ -79,17 +82,17 @@ export default function App() {
             setState({ status: "loading" });
             try {
               const profile = await ensureUserProfile(user.uid);
-              console.log("🔍 [onLogin] profile.onboardedAt =", profile.onboardedAt, "| onboarded =", Boolean(profile.onboardedAt));
-              if ((profile as UserProfile).themeColor) {
-                applyTheme((profile as UserProfile).themeColor!);
-              }
+              if (profile.themeColor) applyTheme(profile.themeColor as string);
               setState({
                 status: "signed_in",
                 user,
                 onboarded: Boolean(profile.onboardedAt),
+                profile,
+                plan: getEffectivePlan(profile),
               });
             } catch {
-              setState({ status: "signed_in", user, onboarded: false });
+              const fallbackProfile: UserProfile = { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+              setState({ status: "signed_in", user, onboarded: false, profile: fallbackProfile, plan: "free" });
             }
           }}
         />
@@ -112,12 +115,45 @@ export default function App() {
       {state.status === "signed_in" && state.onboarded ? (
         <>
           <Route path="/dashboard" element={<DashboardPage user={state.user} />} />
-          <Route path="/customers" element={<CustomersPage user={state.user} />} />
-          <Route path="/inventory" element={<InventoryPage user={state.user} />} />
-          <Route path="/sales" element={<SalesPage user={state.user} />} />
+          <Route path="/plans" element={
+            <PlansPage
+              user={state.user}
+              currentPlan={state.plan}
+              planExpiresAt={state.profile.planExpiresAt as string | null}
+              trialDaysLeft={trialDaysLeft(state.profile)}
+            />
+          } />
+          <Route path="/payment-success" element={<PaymentSuccessPage user={state.user} />} />
+
+          {/* Páginas bloqueadas para free */}
+          <Route path="/customers" element={
+            <PlanGate plan={state.plan} profile={state.profile}>
+              <CustomersPage user={state.user} />
+            </PlanGate>
+          } />
+          <Route path="/inventory" element={
+            <PlanGate plan={state.plan} profile={state.profile}>
+              <InventoryPage user={state.user} />
+            </PlanGate>
+          } />
+          <Route path="/sales" element={
+            <PlanGate plan={state.plan} profile={state.profile}>
+              <SalesPage user={state.user} />
+            </PlanGate>
+          } />
+          <Route path="/receivables" element={
+            <PlanGate plan={state.plan} profile={state.profile}>
+              <ReceivablesPage user={state.user} />
+            </PlanGate>
+          } />
+          <Route path="/commission" element={
+            <PlanGate plan={state.plan} profile={state.profile}>
+              <CommissionPage user={state.user} />
+            </PlanGate>
+          } />
+
+          {/* Páginas livres para todos */}
           <Route path="/settings" element={<SettingsPage user={state.user} />} />
-          <Route path="/commission" element={<CommissionPage user={state.user} />} />
-          <Route path="/receivables" element={<ReceivablesPage user={state.user} />} />
           <Route path="/financial-report" element={<FinancialReportPage user={state.user} />} />
         </>
       ) : null}

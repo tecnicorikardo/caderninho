@@ -11,6 +11,7 @@ const DESKTOP_NAV = [
   { to: "/commission",      label: "Comissões" },
   { to: "/receivables",     label: "Recebimentos" },
   { to: "/financial-report",label: "Relatório" },
+  { to: "/plans",           label: "⭐ Planos" },
   { to: "/settings",        label: "Configurações" },
 ];
 
@@ -69,6 +70,7 @@ const MENU_ITEMS = [
   { to: "/customers",       label: "Clientes",       emoji: "👥" },
   { to: "/commission",      label: "Comissões",      emoji: "💰" },
   { to: "/financial-report",label: "Relatório",      emoji: "📊" },
+  { to: "/plans",           label: "Planos",         emoji: "⭐" },
   { to: "/settings",        label: "Configurações",  emoji: "⚙️" },
 ];
 
