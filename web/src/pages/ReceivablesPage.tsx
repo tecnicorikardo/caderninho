@@ -473,6 +473,8 @@ export default function ReceivablesPage({ user }: { user: AppUser }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
+  const [filter, setFilter] = useState<"all" | "today" | "tomorrow" | "overdue">("all");
+  const [search, setSearch] = useState("");
 
   useEffect(() => { load(); }, [user.uid]);
 
@@ -518,44 +520,123 @@ export default function ReceivablesPage({ user }: { user: AppUser }) {
     finally { setLoading(false); }
   }
 
-  const totalPending = groups.reduce((s, g) => s + g.totalOwed, 0);
-  const totalOverdue = groups.reduce((s, g) => s + g.overdueAmount, 0);
-  const withDebt = groups.filter(g => g.totalOwed > 0).length;
+  // ── Datas de referência ──────────────────────────────────────────────────
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const todayEnd   = new Date(); todayEnd.setHours(23,59,59,999);
+  const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const tomorrowEnd   = new Date(todayEnd);   tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+
+  // ── Totais por filtro (para os cards) ────────────────────────────────────
+  const allOpenRows = groups.flatMap(g => g.rows.filter(r => r.status !== "paid"));
+  const todayRows     = allOpenRows.filter(r => { const ms = toMillis(r.dueDate); return ms >= todayStart.getTime() && ms <= todayEnd.getTime(); });
+  const tomorrowRows  = allOpenRows.filter(r => { const ms = toMillis(r.dueDate); return ms >= tomorrowStart.getTime() && ms <= tomorrowEnd.getTime(); });
+  const overdueRows   = allOpenRows.filter(r => r.isOverdue);
+
+  const totalToday    = todayRows.reduce((s, r) => s + (r.amountCents - r.paidCents), 0);
+  const totalTomorrow = tomorrowRows.reduce((s, r) => s + (r.amountCents - r.paidCents), 0);
+  const totalOverdue  = overdueRows.reduce((s, r) => s + (r.amountCents - r.paidCents), 0);
+  const totalPending  = groups.reduce((s, g) => s + g.totalOwed, 0);
+  const withDebt      = groups.filter(g => g.totalOwed > 0).length;
+
+  // ── Filtrar grupos pela aba ativa ─────────────────────────────────────────
+  const filteredGroups = groups
+    .map(g => {
+      let rows = g.rows;
+      if (filter === "today")    rows = rows.filter(r => r.status !== "paid" && toMillis(r.dueDate) >= todayStart.getTime() && toMillis(r.dueDate) <= todayEnd.getTime());
+      if (filter === "tomorrow") rows = rows.filter(r => r.status !== "paid" && toMillis(r.dueDate) >= tomorrowStart.getTime() && toMillis(r.dueDate) <= tomorrowEnd.getTime());
+      if (filter === "overdue")  rows = rows.filter(r => r.isOverdue);
+      if (rows.length === 0) return null;
+      const totalOwed = rows.reduce((s, r) => s + (r.amountCents - r.paidCents), 0);
+      const overdueAmount = rows.filter(r => r.isOverdue).reduce((s, r) => s + (r.amountCents - r.paidCents), 0);
+      return { ...g, rows, totalOwed, overdueAmount };
+    })
+    .filter(Boolean)
+    .filter(g => !search || g!.name.toLowerCase().includes(search.toLowerCase())) as Group[];
+
+  const FILTERS = [
+    { key: "all",      label: "Todos",    count: withDebt,           amount: totalPending,  color: "teal" },
+    { key: "today",    label: "Hoje",     count: todayRows.length,    amount: totalToday,    color: "blue" },
+    { key: "tomorrow", label: "Amanhã",   count: tomorrowRows.length, amount: totalTomorrow, color: "purple" },
+    { key: "overdue",  label: "Atrasados",count: overdueRows.length,  amount: totalOverdue,  color: "red" },
+  ] as const;
 
   return (
     <DashboardLayout title="Recebimentos">
       <div className="space-y-4 animate-fade-in">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="card-brand p-4">
-            <div className="text-xs text-gray-500">Total a receber</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{formatMoney(totalPending)}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{withDebt} cliente{withDebt !== 1 ? "s" : ""}</div>
-          </div>
-          <div className="card-brand p-4">
-            <div className="text-xs text-gray-500">Em atraso</div>
-            <div className={`text-2xl font-bold mt-1 ${totalOverdue > 0 ? "text-red-600" : "text-gray-400"}`}>{formatMoney(totalOverdue)}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{groups.filter(g => g.overdueAmount > 0).length} cliente{groups.filter(g => g.overdueAmount > 0).length !== 1 ? "s" : ""}</div>
-          </div>
-          <div className="hidden sm:block rounded-2xl bg-teal-50 border border-teal-100 p-4">
-            <div className="text-xs text-teal-600">Como usar</div>
-            <div className="text-sm text-teal-700 mt-1">Toque em um cliente para ver as parcelas.</div>
-          </div>
+
+        {/* Cards de resumo clicáveis */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {FILTERS.map(f => {
+            const active = filter === f.key;
+            const colorMap = {
+              teal:   { bg: active ? "bg-teal-600"   : "bg-white", text: active ? "text-white" : "text-teal-700",   border: "border-teal-200",   amount: active ? "text-white" : "text-gray-900" },
+              blue:   { bg: active ? "bg-blue-600"   : "bg-white", text: active ? "text-white" : "text-blue-700",   border: "border-blue-200",   amount: active ? "text-white" : "text-gray-900" },
+              purple: { bg: active ? "bg-purple-600" : "bg-white", text: active ? "text-white" : "text-purple-700", border: "border-purple-200", amount: active ? "text-white" : "text-gray-900" },
+              red:    { bg: active ? "bg-red-600"    : "bg-white", text: active ? "text-white" : "text-red-700",    border: "border-red-200",    amount: active ? "text-white" : f.amount > 0 ? "text-red-600" : "text-gray-400" },
+            }[f.color];
+            return (
+              <button key={f.key} onClick={() => setFilter(f.key)}
+                className={`rounded-2xl border p-4 text-left transition-all ${colorMap.bg} ${colorMap.border} ${active ? "shadow-md" : "hover:shadow-sm"}`}>
+                <div className={`text-xs font-medium ${colorMap.text}`}>{f.label}</div>
+                <div className={`text-xl font-bold mt-1 ${colorMap.amount}`}>{formatMoney(f.amount)}</div>
+                <div className={`text-xs mt-0.5 ${active ? "text-white/70" : "text-gray-400"}`}>
+                  {f.count} parcela{f.count !== 1 ? "s" : ""}
+                </div>
+              </button>
+            );
+          })}
         </div>
+
+        {/* Busca */}
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Buscar cliente…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="inp pl-9"
+          />
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg">×</button>
+          )}
+        </div>
+
+        {/* Lista de clientes */}
         <div className="card-brand overflow-hidden">
-          <div className="px-5 py-3 border-b bg-slate-50">
-            <h2 className="text-sm font-semibold text-gray-800">Clientes com saldo</h2>
+          <div className="px-5 py-3 border-b bg-slate-50 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">
+              {filter === "all"      && "Todos os clientes com saldo"}
+              {filter === "today"    && "⏰ A receber hoje"}
+              {filter === "tomorrow" && "📅 A receber amanhã"}
+              {filter === "overdue"  && "🔴 Parcelas atrasadas"}
+            </h2>
+            {filteredGroups.length > 0 && (
+              <span className="text-xs text-gray-400">{filteredGroups.length} cliente{filteredGroups.length !== 1 ? "s" : ""}</span>
+            )}
           </div>
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Carregando...</div>
-          ) : groups.length === 0 ? (
-            <div className="p-8 text-center text-sm text-gray-400">Nenhuma conta a receber.<br /><span className="text-xs">Registre vendas como fiado ou parcelado.</span></div>
+          ) : filteredGroups.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-400">
+              {filter === "today"    && "Nenhuma parcela vence hoje. 🎉"}
+              {filter === "tomorrow" && "Nenhuma parcela vence amanhã."}
+              {filter === "overdue"  && "Nenhuma parcela atrasada. 🎉"}
+              {filter === "all"      && (search ? `Nenhum cliente encontrado para "${search}".` : "Nenhuma conta a receber.")}
+            </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {groups.map(g => {
+              {filteredGroups.map(g => {
                 const openCount = g.rows.filter(r => r.status !== "paid").length;
-                const pct = g.rows.length > 0 ? (g.rows.reduce((s, r) => s + r.paidCents, 0) / g.rows.reduce((s, r) => s + r.amountCents, 0)) * 100 : 100;
+                const allRows = groups.find(og => og.customerId === g.customerId)?.rows ?? g.rows;
+                const pct = allRows.length > 0 ? (allRows.reduce((s, r) => s + r.paidCents, 0) / allRows.reduce((s, r) => s + r.amountCents, 0)) * 100 : 100;
+                // Próxima parcela
+                const nextDue = g.rows.filter(r => r.status !== "paid").sort((a, b) => toMillis(a.dueDate) - toMillis(b.dueDate))[0];
+                const nextDueDate = nextDue ? toDate(nextDue.dueDate as string).toLocaleDateString("pt-BR") : null;
                 return (
-                  <button key={g.customerId} onClick={() => setActiveGroup(g)}
+                  <button key={g.customerId} onClick={() => setActiveGroup(groups.find(og => og.customerId === g.customerId) ?? g)}
                     className="w-full text-left px-5 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${g.overdueAmount > 0 ? "bg-red-100 text-red-700" : "bg-teal-100 text-teal-700"}`}>
@@ -571,9 +652,13 @@ export default function ReceivablesPage({ user }: { user: AppUser }) {
                         <div className="flex items-center justify-between mt-0.5">
                           <span className="text-xs text-gray-500">
                             {openCount > 0 ? `${openCount} parcela${openCount !== 1 ? "s" : ""} em aberto` : "Tudo pago"}
-                            {g.overdueAmount > 0 && <span className="text-red-500 ml-1">- {formatMoney(g.overdueAmount)} atrasado</span>}
+                            {g.overdueAmount > 0 && <span className="text-red-500 ml-1">· {formatMoney(g.overdueAmount)} atrasado</span>}
                           </span>
-                          <span className="text-xs text-gray-400 ml-2">&rsaquo;</span>
+                          {nextDueDate && (
+                            <span className={`text-xs ml-2 flex-shrink-0 ${g.overdueAmount > 0 ? "text-red-500 font-medium" : "text-gray-400"}`}>
+                              {g.overdueAmount > 0 ? `⚠️ venceu ${nextDueDate}` : `vence ${nextDueDate}`}
+                            </span>
+                          )}
                         </div>
                         <div className="mt-1.5 h-1 rounded-full bg-slate-100 overflow-hidden">
                           <div className="h-full rounded-full bg-teal-400 transition-all" style={{ width: `${pct}%` }} />
