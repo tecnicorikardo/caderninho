@@ -71,7 +71,26 @@ export default function App() {
       );
     }
     if (state.status === "signed_out") {
-      return <LoginPage onLogin={(user) => setState({ status: "signed_in", user, onboarded: false })} />;
+      return (
+        <LoginPage
+          onLogin={async (user) => {
+            setState({ status: "loading" });
+            try {
+              const profile = await ensureUserProfile(user.uid);
+              if ((profile as UserProfile).themeColor) {
+                applyTheme((profile as UserProfile).themeColor!);
+              }
+              setState({
+                status: "signed_in",
+                user,
+                onboarded: Boolean(profile.onboardedAt),
+              });
+            } catch {
+              setState({ status: "signed_in", user, onboarded: false });
+            }
+          }}
+        />
+      );
     }
     if (!state.onboarded) {
       return (
