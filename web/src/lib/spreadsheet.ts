@@ -137,9 +137,31 @@ export async function parseImportFile(file: File): Promise<{ preview: ImportPrev
   return { preview: { customers, products, errors }, wb };
 }
 
-export async function importFromWorkbook(uid: string, wb: XLSX.WorkBook): Promise<{ customers: number; products: number }> {
+export async function importFromWorkbook(
+  uid: string,
+  wb: XLSX.WorkBook,
+  onProgress?: (label: string, current: number, total: number) => void
+): Promise<{ customers: number; products: number }> {
   const now = nowISO();
   let custCount = 0, prodCount = 0;
+
+  // Processa em lotes paralelos para evitar timeout com muitos registros
+  async function runInBatches<T>(
+    items: T[],
+    batchSize: number,
+    label: string,
+    fn: (item: T) => Promise<void>
+  ) {
+    let done = 0;
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (item) => {
+        await fn(item);
+        done++;
+        onProgress?.(label, done, items.length);
+      }));
+    }
+  }
 
   if (wb.Sheets["Clientes"]) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets["Clientes"], { header: 1 }) as unknown[][];
@@ -150,10 +172,15 @@ export async function importFromWorkbook(uid: string, wb: XLSX.WorkBook): Promis
     const ei = hdrs.findIndex(h => h.startsWith("email"));
     const ai = hdrs.findIndex(h => h.startsWith("endereco"));
 
-    for (const r of data.filter(r => r.some(c => getCellString(c)))) {
+    const validRows = data.filter(r => {
       const name = getCellString(r[ni]);
       const phone = getCellString(r[pi]);
-      if (!name || !phone) continue;
+      return r.some(c => getCellString(c)) && name && phone;
+    });
+
+    await runInBatches(validRows, 10, "Importando clientes…", async (r) => {
+      const name = getCellString(r[ni]);
+      const phone = getCellString(r[pi]);
       const phoneNormalized = phone.replace(/\D/g, "");
       await upsertCustomer(uid, phoneNormalized, {
         userId: uid,
@@ -167,7 +194,7 @@ export async function importFromWorkbook(uid: string, wb: XLSX.WorkBook): Promis
         updatedAt: now,
       });
       custCount++;
-    }
+    });
   }
 
   if (wb.Sheets["Produtos"]) {
@@ -182,12 +209,17 @@ export async function importFromWorkbook(uid: string, wb: XLSX.WorkBook): Promis
     const ei = hdrs.findIndex(h => h.startsWith("validade"));
     const ki = hdrs.findIndex(h => h.startsWith("codigo"));
 
-    for (const r of data.filter(r => r.some(c => getCellString(c)))) {
+    const validRows = data.filter(r => {
       const name = getCellString(r[ni]);
       const brand = getCellString(r[bi]);
       const qty = Number(r[qi]);
-      if (!name || !brand || !qty) continue;
+      return r.some(c => getCellString(c)) && name && brand && qty;
+    });
 
+    await runInBatches(validRows, 10, "Importando produtos…", async (r) => {
+      const name = getCellString(r[ni]);
+      const brand = getCellString(r[bi]);
+      const qty = Number(r[qi]);
       const code = getCellString(r[ki]);
       const expiryRaw = getCellString(r[ei]);
       const expiryDate = expiryRaw
@@ -212,7 +244,7 @@ export async function importFromWorkbook(uid: string, wb: XLSX.WorkBook): Promis
         updatedAt: now,
       });
       prodCount++;
-    }
+    });
   }
 
   return { customers: custCount, products: prodCount };

@@ -6,6 +6,7 @@ export default function ImportWizard({ uid, onDone, onBack }: { uid: string; onD
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [wb, setWb] = useState<WorkBook | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ label: string; current: number; total: number } | null>(null);
   const [done, setDone] = useState<{ customers: number; products: number } | null>(null);
   const [err, setErr] = useState("");
 
@@ -22,19 +23,22 @@ export default function ImportWizard({ uid, onDone, onBack }: { uid: string; onD
 
   async function doImport() {
     if (!wb) return;
-    setBusy(true); setErr("");
+    setBusy(true); setErr(""); setProgress(null);
     try {
-      const result = await importFromWorkbook(uid, wb);
+      const total = (preview?.customers ?? 0) + (preview?.products ?? 0);
+      const result = await importFromWorkbook(uid, wb, (label, current, subtotal) => {
+        setProgress({ label, current, total: subtotal ?? total });
+      });
       setDone(result);
     } catch (ex) { setErr(ex instanceof Error ? ex.message : "Erro ao importar."); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setProgress(null); }
   }
 
   if (done) {
     return (
       <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-6 text-center space-y-4">
         <div className="text-4xl">✅</div>
-        <div className="text-lg font-semibold text-gray-900">Importacao concluida!</div>
+        <div className="text-lg font-semibold text-gray-900">Importação concluída!</div>
         <div className="text-sm text-gray-600 space-y-1">
           <div>{done.customers} cliente{done.customers !== 1 ? "s" : ""} importado{done.customers !== 1 ? "s" : ""}</div>
           <div>{done.products} produto{done.products !== 1 ? "s" : ""} importado{done.products !== 1 ? "s" : ""} no estoque</div>
@@ -54,7 +58,7 @@ export default function ImportWizard({ uid, onDone, onBack }: { uid: string; onD
       <div className="rounded-xl bg-teal-50 border border-teal-100 p-4 flex items-center justify-between gap-4">
         <div>
           <div className="text-sm font-medium text-teal-800">Baixar modelo de planilha</div>
-          <div className="text-xs text-teal-600 mt-0.5">Arquivo Excel com abas Clientes e Produtos, ja formatado com exemplos</div>
+          <div className="text-xs text-teal-600 mt-0.5">Arquivo Excel com abas Clientes e Produtos, já formatado com exemplos</div>
         </div>
         <button onClick={downloadTemplate} className="flex-shrink-0 rounded-xl bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 text-sm font-semibold transition-colors">
           Baixar modelo
@@ -67,9 +71,9 @@ export default function ImportWizard({ uid, onDone, onBack }: { uid: string; onD
           className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:font-medium hover:file:bg-teal-100 cursor-pointer" />
       </div>
 
-      {preview && (
+      {preview && !busy && (
         <div className="rounded-xl border border-slate-200 p-4 space-y-2">
-          <div className="text-sm font-medium text-gray-800">Preview da importacao:</div>
+          <div className="text-sm font-medium text-gray-800">Preview da importação:</div>
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg bg-blue-50 p-3 text-center">
               <div className="text-2xl font-bold text-blue-700">{preview.customers}</div>
@@ -92,13 +96,34 @@ export default function ImportWizard({ uid, onDone, onBack }: { uid: string; onD
         </div>
       )}
 
+      {/* Barra de progresso durante importação */}
+      {busy && progress && (
+        <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-700 font-medium">{progress.label}</span>
+            <span className="text-gray-500">{progress.current} / {progress.total}</span>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-2">
+            <div
+              className="bg-teal-500 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${Math.round((progress.current / progress.total) * 100)}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-400">Não feche esta página durante a importação.</p>
+        </div>
+      )}
+
+      {busy && !progress && (
+        <div className="text-sm text-gray-500 text-center py-2">Preparando importação…</div>
+      )}
+
       {err && <div className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{err}</div>}
 
       <div className="flex gap-3">
         <button onClick={onBack} disabled={busy} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm text-gray-600 hover:bg-slate-50 disabled:opacity-50">Voltar</button>
         <button onClick={doImport} disabled={busy || !wb || (preview?.customers === 0 && preview?.products === 0)}
           className="flex-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-2.5 text-sm font-semibold disabled:opacity-50 transition-colors">
-          {busy ? "Importando..." : `Importar ${(preview?.customers ?? 0) + (preview?.products ?? 0)} registros`}
+          {busy ? "Importando…" : `Importar ${(preview?.customers ?? 0) + (preview?.products ?? 0)} registros`}
         </button>
       </div>
     </div>
