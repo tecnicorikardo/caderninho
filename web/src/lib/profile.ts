@@ -1,5 +1,5 @@
 import { databases, account, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { ID, Permission, Role } from "appwrite";
 import type { UserProfile } from "@/lib/types";
 
 export async function ensureUserProfile(uid: string): Promise<UserProfile> {
@@ -36,7 +36,7 @@ export async function ensureUserProfile(uid: string): Promise<UserProfile> {
       userId: uid,
       createdAt: now,
       updatedAt: now,
-      onboardedAt: null,
+      // onboardedAt não é enviado — fica null até o usuário concluir o onboarding
       growthLevel: "Semente",
       brandMargins: JSON.stringify([
         { brand: "Natura", marginPercent: 30 },
@@ -47,7 +47,11 @@ export async function ensureUserProfile(uid: string): Promise<UserProfile> {
       themeColor: null,
     };
 
-    await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), newProfile);
+    await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), newProfile, [
+      Permission.read(Role.user(uid)),
+      Permission.update(Role.user(uid)),
+      Permission.delete(Role.user(uid)),
+    ]);
 
     return {
       createdAt: now,

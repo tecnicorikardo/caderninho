@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { account } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { ID, Permission, Role } from "appwrite";
 import { databases, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite";
 import type { AppUser } from "@/App";
 
@@ -58,13 +58,13 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
         // Fazer login automaticamente
         await account.createEmailPasswordSession(email, password);
 
-        // Criar perfil no banco
+        // Criar perfil no banco com permissões do próprio usuário
         const now = new Date().toISOString();
         await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), {
           userId: user.$id,
           createdAt: now,
           updatedAt: now,
-          onboardedAt: null,
+          // onboardedAt não é enviado — fica null até o usuário concluir o onboarding
           growthLevel: "Semente",
           brandMargins: JSON.stringify([
             { brand: "Natura", marginPercent: 30 },
@@ -73,7 +73,11 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
           ]),
           planStatus: "free",
           themeColor: null,
-        });
+        }, [
+          Permission.read(Role.user(user.$id)),
+          Permission.update(Role.user(user.$id)),
+          Permission.delete(Role.user(user.$id)),
+        ]);
 
         onLogin({ uid: user.$id, email: user.email });
 
