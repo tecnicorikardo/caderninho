@@ -1,17 +1,22 @@
 import * as XLSX from "xlsx";
 import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { ID, Permission, Role } from "appwrite";
 import { toCents } from "@/lib/money";
 import { toDate, nowISO } from "@/lib/timestamp";
 import type { Customer, InventoryItem } from "@/lib/types";
 
 function getCellString(v: unknown): string { if (v == null) return ""; return String(v).trim(); }
 function stableHash(s: string): string { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
+function userPerms(uid: string) {
+  return [
+    Permission.read(Role.user(uid)),
+    Permission.update(Role.user(uid)),
+    Permission.delete(Role.user(uid)),
+  ];
+}
+const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-// Cria ou atualiza um documento — evita erro 409 em reimportações
-// Estratégia: tenta criar; se já existe (409), busca pelo campo único e atualiza
 async function upsertCustomer(uid: string, phoneNormalized: string, data: Record<string, unknown>) {
-  // Verificar se já existe pelo phoneNormalized
   const existing = await databases.listDocuments(DATABASE_ID, COLLECTIONS.CUSTOMERS, [
     Query.equal("userId", uid),
     Query.equal("phoneNormalized", phoneNormalized),
@@ -24,12 +29,11 @@ async function upsertCustomer(uid: string, phoneNormalized: string, data: Record
       updatedAt: nowISO(),
     });
   } else {
-    await databases.createDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, ID.unique(), data);
+    await databases.createDocument(DATABASE_ID, COLLECTIONS.CUSTOMERS, ID.unique(), data, userPerms(uid));
   }
 }
 
 async function upsertInventory(uid: string, invId: string, data: Record<string, unknown>) {
-  // Verificar se já existe pelo invId como campo de referência
   const existing = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
     Query.equal("userId", uid),
     Query.equal("productId", data.productId as string),
@@ -42,7 +46,7 @@ async function upsertInventory(uid: string, invId: string, data: Record<string, 
       updatedAt: nowISO(),
     });
   } else {
-    await databases.createDocument(DATABASE_ID, COLLECTIONS.INVENTORY, ID.unique(), data);
+    await databases.createDocument(DATABASE_ID, COLLECTIONS.INVENTORY, ID.unique(), data, userPerms(uid));
   }
 }
 
@@ -145,7 +149,7 @@ export async function importFromWorkbook(
   const now = nowISO();
   let custCount = 0, prodCount = 0;
 
-  // Processa em lotes paralelos para evitar timeout com muitos registros
+  // Lotes de 3 com delay de 400ms entre lotes para respeitar rate limit do Appwrite free tier
   async function runInBatches<T>(
     items: T[],
     batchSize: number,
@@ -160,6 +164,8 @@ export async function importFromWorkbook(
         done++;
         onProgress?.(label, done, items.length);
       }));
+      // Pausa entre lotes para não estourar o rate limit
+      if (i + batchSize < items.length) await delay(400);
     }
   }
 
@@ -178,7 +184,7 @@ export async function importFromWorkbook(
       return r.some(c => getCellString(c)) && name && phone;
     });
 
-    await runInBatches(validRows, 10, "Importando clientes…", async (r) => {
+    await runInBatches(validRows, 3, "Importando clientes…", async (r) => {
       const name = getCellString(r[ni]);
       const phone = getCellString(r[pi]);
       const phoneNormalized = phone.replace(/\D/g, "");
@@ -216,7 +222,7 @@ export async function importFromWorkbook(
       return r.some(c => getCellString(c)) && name && brand && qty;
     });
 
-    await runInBatches(validRows, 10, "Importando produtos…", async (r) => {
+    await runInBatches(validRows, 3, "Importando produtos…", async (r) => {
       const name = getCellString(r[ni]);
       const brand = getCellString(r[bi]);
       const qty = Number(r[qi]);

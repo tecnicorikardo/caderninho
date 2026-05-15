@@ -11,7 +11,16 @@ import type {
   Receivable, 
   UserProfile 
 } from '../types';
-import { ID } from 'appwrite';
+import { ID, Permission, Role } from 'appwrite';
+
+// Permissões padrão para documentos do usuário
+function userPerms(userId: string) {
+  return [
+    Permission.read(Role.user(userId)),
+    Permission.update(Role.user(userId)),
+    Permission.delete(Role.user(userId)),
+  ];
+}
 
 // Helper para converter Timestamp do Appwrite para formato compatível
 function toTimestamp(date: string | Date) {
@@ -102,7 +111,8 @@ export class AppwriteDBService implements IDBService {
           ...data,
           createdAt: now,
           updatedAt: now,
-        }
+        },
+        userPerms(userId)
       );
 
       return doc.$id;
@@ -229,7 +239,8 @@ export class AppwriteDBService implements IDBService {
           ...data,
           createdAt: now,
           updatedAt: now,
-        }
+        },
+        userPerms(userId)
       );
 
       return doc.$id;
@@ -365,7 +376,8 @@ export class AppwriteDBService implements IDBService {
           paymentType: data.paymentType,
           createdAt: now,
           updatedAt: now,
-        }
+        },
+        userPerms(userId)
       );
 
       return doc.$id;
@@ -466,7 +478,8 @@ export class AppwriteDBService implements IDBService {
           ...data,
           createdAt: now,
           updatedAt: now,
-        }
+        },
+        userPerms(userId)
       );
 
       return doc.$id;
@@ -544,7 +557,8 @@ export class AppwriteDBService implements IDBService {
           updatedAt: now,
           ...data,
           brandMargins: data.brandMargins ? JSON.stringify(data.brandMargins) : undefined,
-        }
+        },
+        userPerms(userId)
       );
     } catch (error: any) {
       throw new Error(error.message || 'Erro ao criar perfil');
