@@ -193,7 +193,7 @@ export async function importFromWorkbook(
       custCount++;
       onProgress?.("Importando clientes…", custCount, validRows.length);
       // Delay entre cada inserção para respeitar rate limit
-      await delay(150);
+      await delay(100);
     }
   }
 
@@ -249,7 +249,7 @@ export async function importFromWorkbook(
       prodCount++;
       onProgress?.("Importando produtos…", prodCount, validRows.length);
       // Delay entre cada inserção para respeitar rate limit
-      await delay(150);
+      await delay(100);
     }
   }
 

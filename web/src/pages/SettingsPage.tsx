@@ -47,6 +47,8 @@ export default function SettingsPage({ user }: { user: AppUser }) {
   const [wiping, setWiping] = useState(false);
   const [wipeConfirm, setWipeConfirm] = useState("");
   const [showWipe, setShowWipe] = useState(false);
+  const [wipeProgress, setWipeProgress] = useState<{ label: string; current: number; total: number } | null>(null);
+  const [importProgress, setImportProgress] = useState<{ label: string; current: number; total: number } | null>(null);
 
   // ID do documento de perfil no Appwrite
   const [profileDocId, setProfileDocId] = useState<string | null>(null);
@@ -166,14 +168,16 @@ export default function SettingsPage({ user }: { user: AppUser }) {
 
   async function handleImport() {
     if (!importWb) return;
-    setImporting(true); setImportMsg(null);
+    setImporting(true); setImportMsg(null); setImportProgress(null);
     try {
-      const result = await importFromWorkbook(user.uid, importWb);
+      const result = await importFromWorkbook(user.uid, importWb, (label, current, total) => {
+        setImportProgress({ label, current, total });
+      });
       setImportMsg({ type: "ok", text: `Importado: ${result.customers} clientes e ${result.products} produtos.` });
       setImportPreview(null); setImportWb(null);
     } catch (ex) {
       setImportMsg({ type: "err", text: ex instanceof Error ? ex.message : "Erro ao importar." });
-    } finally { setImporting(false); }
+    } finally { setImporting(false); setImportProgress(null); }
   }
 
   // ── Alterar senha ─────────────────────────────────────────────────────────
@@ -200,49 +204,62 @@ export default function SettingsPage({ user }: { user: AppUser }) {
   async function handleWipeAll() {
     if (wipeConfirm !== "APAGAR") return;
     setWiping(true);
+    setWipeProgress(null);
     try {
-      // Deletar sequencialmente com delay para evitar rate limit (429)
       const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-      const deleteAll = async (collectionId: string) => {
+      const deleteAll = async (collectionId: string, label: string) => {
+        // Primeiro conta quantos existem
+        const countRes = await databases.listDocuments(DATABASE_ID, collectionId, [
+          Query.equal("userId", user.uid), Query.limit(1),
+        ]);
+        // Appwrite retorna o total no campo total
+        let deleted = 0;
+        const total = (countRes as any).total ?? 0;
+        if (total === 0) return;
+
+        setWipeProgress({ label, current: 0, total });
+
         while (true) {
           const res = await databases.listDocuments(DATABASE_ID, collectionId, [
-            Query.equal("userId", user.uid),
-            Query.limit(25), // lotes menores para não estourar rate limit
+            Query.equal("userId", user.uid), Query.limit(25),
           ]);
           if (res.documents.length === 0) break;
 
-          // Deletar um por um com pequeno delay
           for (const doc of res.documents) {
             try {
               await databases.deleteDocument(DATABASE_ID, collectionId, doc.$id);
-              await sleep(80); // 80ms entre cada delete ≈ ~12 req/s
+              deleted++;
+              setWipeProgress({ label, current: deleted, total });
+              await sleep(100);
             } catch (err: any) {
               if (Number(err?.code) === 429) {
-                await sleep(2000); // esperar 2s se rate limit
+                await sleep(2000);
                 await databases.deleteDocument(DATABASE_ID, collectionId, doc.$id);
+                deleted++;
+                setWipeProgress({ label, current: deleted, total });
               }
             }
           }
-
           if (res.documents.length < 25) break;
         }
       };
 
-      // Deletar uma collection por vez para não sobrecarregar
-      await deleteAll(COLLECTIONS.SALES);
-      await deleteAll(COLLECTIONS.RECEIVABLES);
-      await deleteAll(COLLECTIONS.MOVEMENTS);
-      await deleteAll(COLLECTIONS.INVENTORY);
-      await deleteAll(COLLECTIONS.CUSTOMERS);
+      await deleteAll(COLLECTIONS.SALES, "Apagando vendas…");
+      await deleteAll(COLLECTIONS.RECEIVABLES, "Apagando recebíveis…");
+      await deleteAll(COLLECTIONS.MOVEMENTS, "Apagando movimentações…");
+      await deleteAll(COLLECTIONS.INVENTORY, "Apagando estoque…");
+      await deleteAll(COLLECTIONS.CUSTOMERS, "Apagando clientes…");
 
       setShowWipe(false);
       setWipeConfirm("");
+      setWipeProgress(null);
       alert("✅ Todos os dados foram apagados com sucesso!");
     } catch (e) {
       alert("Erro ao apagar dados: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setWiping(false);
+      setWipeProgress(null);
     }
   }
 
@@ -421,6 +438,18 @@ export default function SettingsPage({ user }: { user: AppUser }) {
                 </button>
               </div>
             )}
+            {importing && importProgress && (
+              <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                  <span className="font-medium">{importProgress.label}</span>
+                  <span>{importProgress.current} / {importProgress.total}</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2">
+                  <div className="h-2 rounded-full transition-all duration-200 btn-brand" style={{ width: `${Math.round((importProgress.current / importProgress.total) * 100)}%`, backgroundColor: themeColor }} />
+                </div>
+                <p className="text-xs text-gray-400">Não feche esta página durante a importação.</p>
+              </div>
+            )}
             {importMsg && (
               <div className={`text-xs p-2.5 rounded-lg ${importMsg.type === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{importMsg.text}</div>
             )}
@@ -486,9 +515,22 @@ export default function SettingsPage({ user }: { user: AppUser }) {
                   disabled={wipeConfirm !== "APAGAR" || wiping}
                   className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 text-sm font-semibold disabled:opacity-40 transition-colors"
                 >
-                  {wiping ? "Apagando… (pode demorar)" : "Confirmar — Apagar tudo"}
+                  {wiping ? "Apagando…" : "Confirmar — Apagar tudo"}
                 </button>
               </div>
+              {wiping && wipeProgress && (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-red-700">
+                    <span className="font-medium">{wipeProgress.label}</span>
+                    <span>{wipeProgress.current} / {wipeProgress.total}</span>
+                  </div>
+                  <div className="w-full bg-red-100 rounded-full h-2">
+                    <div className="h-2 rounded-full bg-red-500 transition-all duration-200"
+                      style={{ width: `${Math.round((wipeProgress.current / wipeProgress.total) * 100)}%` }} />
+                  </div>
+                  <p className="text-xs text-red-400">Não feche esta página.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
