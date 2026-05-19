@@ -1,11 +1,10 @@
 import { Client, Databases, Query } from "node-appwrite";
 
 const PLAN_PRICES = {
-  monthly: { amountCents: 2990, label: "Plano Pro — Mensal", months: 1 },
-  yearly:  { amountCents: 29990, label: "Plano Pro — Anual (12 meses)", months: 12 },
+  monthly: { amountCents: 2990,  label: "Bloquinho Digital - Plano Pro Mensal",  months: 1  },
+  yearly:  { amountCents: 29990, label: "Bloquinho Digital - Plano Pro Anual",    months: 12 },
 };
 
-// Headers CORS para permitir chamadas do frontend
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -13,8 +12,23 @@ const CORS_HEADERS = {
   "Content-Type": "application/json",
 };
 
+// Obtém token OAuth2 da EFI (produção)
+async function getEfiToken(clientId, clientSecret) {
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const res = await fetch("https://api.efipay.com.br/v1/authorize", {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${credentials}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ grant_type: "client_credentials" }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error("EFI auth error: " + JSON.stringify(data));
+  return data.access_token;
+}
+
 export default async ({ req, res, log, error }) => {
-  // Responde preflight OPTIONS imediatamente
   if (req.method === "OPTIONS") {
     return res.send("", 204, CORS_HEADERS);
   }
@@ -25,93 +39,123 @@ export default async ({ req, res, log, error }) => {
     .setKey(process.env.APPWRITE_API_KEY);
 
   const db = new Databases(client);
-  const DB_ID = process.env.APPWRITE_DATABASE_ID;
+  const DB_ID       = process.env.APPWRITE_DATABASE_ID;
   const COL_PROFILES = process.env.APPWRITE_COLLECTION_PROFILES;
-  const MP_TOKEN = process.env.MP_ACCESS_TOKEN;
+  const EFI_CLIENT_ID     = process.env.EFI_CLIENT_ID;
+  const EFI_CLIENT_SECRET = process.env.EFI_CLIENT_SECRET;
   const APP_URL = process.env.APP_BASE_URL || "https://bloquinhodigital.web.app";
-  const FUNCTION_URL = process.env.FUNCTION_URL || "";
 
   log(`${req.method} ${req.path}`);
 
-  // ── Criar preferência de pagamento ──────────────────────────────────────
-  if (req.method === "POST" && req.path === "/create-preference") {
+  // ── Criar cobrança EFI ───────────────────────────────────────────────────
+  if (req.method === "POST" && req.path === "/create-charge") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-      const { userId, plan } = body || {};
+      const { userId, plan, customerName, customerCpf, customerEmail, customerPhone } = body || {};
 
       if (!userId || !plan || !PLAN_PRICES[plan]) {
-        return res.send(JSON.stringify({ error: "Parâmetros inválidos" }), 400, CORS_HEADERS);
+        return res.send(JSON.stringify({ error: "Parametros invalidos" }), 400, CORS_HEADERS);
+      }
+      if (!customerName || !customerCpf) {
+        return res.send(JSON.stringify({ error: "Nome e CPF sao obrigatorios" }), 400, CORS_HEADERS);
       }
 
       const price = PLAN_PRICES[plan];
+      const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET);
 
-      const mpRes = await fetch("https://api.mercadopago.com/checkout/preferences", {
+      // Criar cobrança com link de pagamento (boleto + pix + cartão)
+      const chargeRes = await fetch("https://api.efipay.com.br/v1/charge", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${MP_TOKEN}`,
+          "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           items: [{
-            title: price.label,
-            quantity: 1,
-            unit_price: price.amountCents / 100,
-            currency_id: "BRL",
+            name: price.label,
+            value: price.amountCents,
+            amount: 1,
           }],
-          back_urls: {
-            success: `${APP_URL}/payment-success?plan=${plan}&userId=${userId}`,
-            failure: `${APP_URL}/plans?error=payment_failed`,
-            pending: `${APP_URL}/plans?status=pending`,
+          metadata: {
+            custom_id: `${userId}|${plan}`,
+            notification_url: `${process.env.FUNCTION_URL}/webhook`,
           },
-          auto_return: "approved",
-          external_reference: `${userId}|${plan}`,
-          notification_url: `${FUNCTION_URL}/webhook`,
-          statement_descriptor: "BLOQUINHO DIGITAL",
+          settings: {
+            payment_method: "all",
+            return_url: `${APP_URL}/payment-success?plan=${plan}&userId=${userId}`,
+          },
         }),
       });
 
-      const mpData = await mpRes.json();
-      if (!mpRes.ok) {
-        error("MP error: " + JSON.stringify(mpData));
-        return res.send(JSON.stringify({ error: "Erro ao criar preferência MP" }), 500, CORS_HEADERS);
+      const chargeData = await chargeRes.json();
+      if (!chargeRes.ok) {
+        error("EFI charge error: " + JSON.stringify(chargeData));
+        return res.send(JSON.stringify({ error: "Erro ao criar cobranca EFI", detail: chargeData }), 500, CORS_HEADERS);
       }
 
-      log(`Preferência criada: ${mpData.id} para userId=${userId} plano=${plan}`);
+      const chargeId = chargeData.data?.charge_id;
+
+      // Gerar link de pagamento
+      const linkRes = await fetch(`https://api.efipay.com.br/v1/charge/${chargeId}/link`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          billet_discount: 0,
+          card_discount: 0,
+          conditional_discount: { type: "percentage", value: 0, until_date: "" },
+          message: "",
+          expire_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          request_delivery_address: false,
+          payment_method: "all",
+        }),
+      });
+
+      const linkData = await linkRes.json();
+      if (!linkRes.ok) {
+        error("EFI link error: " + JSON.stringify(linkData));
+        return res.send(JSON.stringify({ error: "Erro ao gerar link de pagamento", detail: linkData }), 500, CORS_HEADERS);
+      }
+
+      log(`Cobranca criada: charge_id=${chargeId} userId=${userId} plano=${plan}`);
       return res.send(JSON.stringify({
-        preferenceId: mpData.id,
-        initPoint: mpData.init_point,
-        sandboxInitPoint: mpData.sandbox_init_point,
+        chargeId,
+        paymentUrl: linkData.data?.payment_url,
+        status: chargeData.data?.status,
       }), 200, CORS_HEADERS);
 
     } catch (e) {
-      error("create-preference error: " + e.message);
+      error("create-charge error: " + e.message);
       return res.send(JSON.stringify({ error: "Erro interno: " + e.message }), 500, CORS_HEADERS);
     }
   }
 
-  // ── Webhook do Mercado Pago ──────────────────────────────────────────────
+  // ── Webhook EFI ──────────────────────────────────────────────────────────
   if (req.method === "POST" && req.path === "/webhook") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-      const { type, data } = body || {};
-      log(`Webhook recebido: type=${type} id=${data?.id}`);
+      log("Webhook EFI recebido: " + JSON.stringify(body));
 
-      if (type !== "payment") return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
+      const chargeId = body?.charge_id || body?.data?.charge_id;
+      const status   = body?.status    || body?.data?.status;
 
-      const payRes = await fetch(`https://api.mercadopago.com/v1/payments/${data.id}`, {
-        headers: { "Authorization": `Bearer ${MP_TOKEN}` },
-      });
-      const payment = await payRes.json();
-
-      log(`Pagamento ${data.id}: status=${payment.status} ref=${payment.external_reference}`);
-
-      if (payment.status !== "approved") {
+      if (!chargeId || status !== "paid") {
         return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
       }
 
-      const [userId, plan] = (payment.external_reference || "").split("|");
+      // Buscar detalhes da cobrança para pegar o custom_id (userId|plan)
+      const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET);
+      const detailRes = await fetch(`https://api.efipay.com.br/v1/charge/${chargeId}`, {
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      const detail = await detailRes.json();
+      const customId = detail.data?.metadata?.custom_id || "";
+      const [userId, plan] = customId.split("|");
+
       if (!userId || !plan || !PLAN_PRICES[plan]) {
-        error("external_reference inválido: " + payment.external_reference);
+        error("custom_id invalido: " + customId);
         return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
       }
 
@@ -125,7 +169,7 @@ export default async ({ req, res, log, error }) => {
       ]);
 
       if (profiles.documents.length === 0) {
-        error("Perfil não encontrado para userId: " + userId);
+        error("Perfil nao encontrado: " + userId);
         return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
       }
 
@@ -135,7 +179,7 @@ export default async ({ req, res, log, error }) => {
         updatedAt: new Date().toISOString(),
       });
 
-      log(`✅ Plano PRO ativado para userId=${userId} até ${expiresAt.toISOString()}`);
+      log(`Plano PRO ativado: userId=${userId} ate ${expiresAt.toISOString()}`);
       return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
 
     } catch (e) {
@@ -144,13 +188,11 @@ export default async ({ req, res, log, error }) => {
     }
   }
 
-  // ── Verificar status do plano ────────────────────────────────────────────
+  // ── Verificar plano ──────────────────────────────────────────────────────
   if (req.method === "GET" && req.path === "/check-plan") {
     try {
       const userId = req.query?.userId;
-      if (!userId) {
-        return res.send(JSON.stringify({ error: "userId obrigatório" }), 400, CORS_HEADERS);
-      }
+      if (!userId) return res.send(JSON.stringify({ error: "userId obrigatorio" }), 400, CORS_HEADERS);
 
       const profiles = await db.listDocuments(DB_ID, COL_PROFILES, [
         Query.equal("userId", userId),
@@ -184,5 +226,5 @@ export default async ({ req, res, log, error }) => {
     }
   }
 
-  return res.send(JSON.stringify({ error: "Rota não encontrada", path: req.path, method: req.method }), 404, CORS_HEADERS);
+  return res.send(JSON.stringify({ error: "Rota nao encontrada", path: req.path }), 404, CORS_HEADERS);
 };
