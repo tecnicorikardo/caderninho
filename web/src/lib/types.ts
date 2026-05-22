@@ -18,6 +18,8 @@ export type UserProfile = {
   planStatus?: "free" | "pro";
   planExpiresAt?: AppTimestamp | null;
   themeColor?: string | null;
+  cpf?: string | null;
+  emailVerified?: boolean;
 };
 
 export type Customer = {
