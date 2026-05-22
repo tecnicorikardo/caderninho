@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { account } from "@/lib/appwrite";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useUserContext } from "@/lib/userContext";
 
 // ─── Desktop nav (top) ───────────────────────────────────────────────────────
 const DESKTOP_NAV = [
@@ -127,6 +128,29 @@ export default function DashboardLayout({
 }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { emailVerified } = useUserContext();
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyDismissed, setVerifyDismissed] = useState(
+    () => sessionStorage.getItem("email_verify_dismissed") === "1"
+  );
+
+  async function handleResendVerification() {
+    setVerifyLoading(true);
+    try {
+      await account.createVerification(`${window.location.origin}/`);
+      sessionStorage.setItem("email_verify_dismissed", "1");
+      setVerifyDismissed(true);
+    } catch {
+      // silencioso
+    } finally {
+      setVerifyLoading(false);
+    }
+  }
+
+  function handleDismiss() {
+    sessionStorage.setItem("email_verify_dismissed", "1");
+    setVerifyDismissed(true);
+  }
 
   async function handleLogout() {
     if (confirm("Deseja sair da conta?")) {
@@ -175,6 +199,26 @@ export default function DashboardLayout({
           </button>
         </div>
       </header>
+
+      {/* ── Banner de verificação de email ── */}
+      {emailVerified === false && !verifyDismissed && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-amber-800">
+            <span>✉️</span>
+            <span>Confirme seu e-mail para garantir acesso à sua conta.</span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleResendVerification}
+              disabled={verifyLoading}
+              className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline disabled:opacity-50"
+            >
+              {verifyLoading ? "Enviando…" : "Reenviar link"}
+            </button>
+            <button onClick={handleDismiss} className="text-amber-400 hover:text-amber-700 text-lg leading-none">×</button>
+          </div>
+        </div>
+      )}
 
       {/* ── Conteúdo ── */}
       {/* pb-20 no mobile para não ficar atrás da bottom bar */}

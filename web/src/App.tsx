@@ -4,6 +4,7 @@ import { account } from "@/lib/appwrite";
 import { ensureUserProfile } from "@/lib/profile";
 import { applyTheme } from "@/lib/theme";
 import { getEffectivePlan, trialDaysLeft } from "@/lib/plan";
+import { UserContext } from "@/lib/userContext";
 import LoginPage from "@/pages/LoginPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -23,6 +24,7 @@ import type { PlanStatus } from "@/lib/plan";
 export type AppUser = {
   uid: string;
   email: string;
+  emailVerified?: boolean;
 };
 
 type SessionState =
@@ -41,7 +43,11 @@ export default function App() {
         const user = await account.get();
         if (!active) return;
 
-        const appUser: AppUser = { uid: user.$id, email: user.email };
+        const appUser: AppUser = {
+          uid: user.$id,
+          email: user.email,
+          emailVerified: user.emailVerification,
+        };
         const profile = await ensureUserProfile(user.$id);
 
         if (!active) return;
@@ -83,9 +89,11 @@ export default function App() {
             try {
               const profile = await ensureUserProfile(user.uid);
               if (profile.themeColor) applyTheme(profile.themeColor as string);
+              // Busca emailVerification atualizado do Appwrite
+              const freshUser = await account.get().catch(() => null);
               setState({
                 status: "signed_in",
-                user,
+                user: { ...user, emailVerified: freshUser?.emailVerification ?? false },
                 onboarded: Boolean(profile.onboardedAt),
                 profile,
                 plan: getEffectivePlan(profile),
@@ -109,55 +117,59 @@ export default function App() {
     return <Navigate to="/dashboard" replace />;
   }, [state]);
 
+  const emailVerified = state.status === "signed_in" ? (state.user.emailVerified ?? true) : true;
+
   return (
-    <Routes>
-      <Route path="/" element={rootView} />
-      {state.status === "signed_in" && state.onboarded ? (
-        <>
-          <Route path="/dashboard" element={<DashboardPage user={state.user} />} />
-          <Route path="/plans" element={
-            <PlansPage
-              user={state.user}
-              currentPlan={state.plan}
-              planExpiresAt={state.profile.planExpiresAt as string | null}
-              trialDaysLeft={trialDaysLeft(state.profile)}
-            />
-          } />
-          <Route path="/payment-success" element={<PaymentSuccessPage user={state.user} />} />
+    <UserContext.Provider value={{ emailVerified }}>
+      <Routes>
+        <Route path="/" element={rootView} />
+        {state.status === "signed_in" && state.onboarded ? (
+          <>
+            <Route path="/dashboard" element={<DashboardPage user={state.user} />} />
+            <Route path="/plans" element={
+              <PlansPage
+                user={state.user}
+                currentPlan={state.plan}
+                planExpiresAt={state.profile.planExpiresAt as string | null}
+                trialDaysLeft={trialDaysLeft(state.profile)}
+              />
+            } />
+            <Route path="/payment-success" element={<PaymentSuccessPage user={state.user} />} />
 
-          {/* Páginas bloqueadas para free */}
-          <Route path="/customers" element={
-            <PlanGate plan={state.plan} profile={state.profile}>
-              <CustomersPage user={state.user} />
-            </PlanGate>
-          } />
-          <Route path="/inventory" element={
-            <PlanGate plan={state.plan} profile={state.profile}>
-              <InventoryPage user={state.user} />
-            </PlanGate>
-          } />
-          <Route path="/sales" element={
-            <PlanGate plan={state.plan} profile={state.profile}>
-              <SalesPage user={state.user} />
-            </PlanGate>
-          } />
-          <Route path="/receivables" element={
-            <PlanGate plan={state.plan} profile={state.profile}>
-              <ReceivablesPage user={state.user} />
-            </PlanGate>
-          } />
-          <Route path="/commission" element={
-            <PlanGate plan={state.plan} profile={state.profile}>
-              <CommissionPage user={state.user} />
-            </PlanGate>
-          } />
+            {/* Páginas bloqueadas para free */}
+            <Route path="/customers" element={
+              <PlanGate plan={state.plan} profile={state.profile}>
+                <CustomersPage user={state.user} />
+              </PlanGate>
+            } />
+            <Route path="/inventory" element={
+              <PlanGate plan={state.plan} profile={state.profile}>
+                <InventoryPage user={state.user} />
+              </PlanGate>
+            } />
+            <Route path="/sales" element={
+              <PlanGate plan={state.plan} profile={state.profile}>
+                <SalesPage user={state.user} />
+              </PlanGate>
+            } />
+            <Route path="/receivables" element={
+              <PlanGate plan={state.plan} profile={state.profile}>
+                <ReceivablesPage user={state.user} />
+              </PlanGate>
+            } />
+            <Route path="/commission" element={
+              <PlanGate plan={state.plan} profile={state.profile}>
+                <CommissionPage user={state.user} />
+              </PlanGate>
+            } />
 
-          {/* Páginas livres para todos */}
-          <Route path="/settings" element={<SettingsPage user={state.user} />} />
-          <Route path="/financial-report" element={<FinancialReportPage user={state.user} />} />
-        </>
-      ) : null}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+            {/* Páginas livres para todos */}
+            <Route path="/settings" element={<SettingsPage user={state.user} />} />
+            <Route path="/financial-report" element={<FinancialReportPage user={state.user} />} />
+          </>
+        ) : null}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </UserContext.Provider>
   );
 }
