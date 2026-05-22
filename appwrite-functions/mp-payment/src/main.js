@@ -84,38 +84,44 @@ export default async ({ req, res, log, error }) => {
       const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         .toISOString().split("T")[0];
 
-      // One-step: cria cobrança + link em uma única chamada
+      const chargePayload = {
+        items: [{
+          name: price.label,
+          value: price.amountCents,
+          amount: 1,
+        }],
+        customer: {
+          name: customerName,
+          cpf: customerCpf.replace(/\D/g, ""),
+          ...(customerEmail ? { email: customerEmail } : {}),
+        },
+        metadata: {
+          custom_id: `${userId}|${plan}`,
+          notification_url: `${FUNCTION_URL}/webhook`,
+        },
+        settings: {
+          payment_method: "all",
+          expire_at: expireAt,
+          return_url: `${APP_URL}/payment-success?plan=${plan}&userId=${userId}`,
+        },
+      };
+
+      log("EFI charge payload: " + JSON.stringify(chargePayload));
+      log("EFI token primeiros 50 chars: " + token.slice(0, 50));
+
       const chargeRes = await fetch(`${EFI_BASE}/v1/charge/one-step/link`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          items: [{
-            name: price.label,
-            value: price.amountCents,
-            amount: 1,
-          }],
-          customer: {
-            name: customerName,
-            cpf: customerCpf.replace(/\D/g, ""),
-            ...(customerEmail ? { email: customerEmail } : {}),
-          },
-          metadata: {
-            custom_id: `${userId}|${plan}`,
-            notification_url: `${FUNCTION_URL}/webhook`,
-          },
-          settings: {
-            payment_method: "all",
-            expire_at: expireAt,
-            return_url: `${APP_URL}/payment-success?plan=${plan}&userId=${userId}`,
-          },
-        }),
+        body: JSON.stringify(chargePayload),
       });
 
       const chargeText = await chargeRes.text();
+      log("EFI charge status: " + chargeRes.status);
       log("EFI charge raw response: " + chargeText.slice(0, 500));
+      log("EFI charge headers: " + JSON.stringify(Object.fromEntries(chargeRes.headers.entries())));
 
       if (chargeText.trim().startsWith("<")) {
         error("EFI retornou HTML: " + chargeText.slice(0, 300));
