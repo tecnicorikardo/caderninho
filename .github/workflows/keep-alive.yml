@@ -1,0 +1,27 @@
+name: Appwrite Keep-Alive
+
+on:
+  schedule:
+    # Roda a cada 5 dias às 08:00 UTC (05:00 Brasilia)
+    - cron: '0 8 */5 * *'
+  workflow_dispatch: # permite rodar manualmente também
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Appwrite para evitar pausa por inatividade
+        run: |
+          echo "Fazendo ping no Appwrite..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "https://fra.cloud.appwrite.io/v1/health" \
+            -H "X-Appwrite-Project: caderninhodigital")
+          echo "Status: $STATUS"
+          
+          # Também faz uma listagem leve no banco para garantir atividade real
+          curl -s -o /dev/null \
+            -X GET "https://fra.cloud.appwrite.io/v1/databases/bloquinho/collections" \
+            -H "X-Appwrite-Project: caderninhodigital" \
+            -H "X-Appwrite-Key: ${{ secrets.APPWRITE_API_KEY }}"
+          
+          echo "Ping concluido com sucesso!"
