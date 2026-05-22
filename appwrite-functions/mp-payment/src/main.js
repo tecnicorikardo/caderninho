@@ -128,7 +128,22 @@ export default async ({ req, res, log, error }) => {
         return res.send(JSON.stringify({ error: "EFI retornou HTML - verifique credenciais e endpoint" }), 500, CORS_HEADERS);
       }
 
-      const chargeData = JSON.parse(chargeText);
+      // Trata resposta 401 Unauthorized (texto puro, sem JSON)
+      if (chargeRes.status === 401) {
+        error("EFI charge 401 Unauthorized - verifique se o escopo 'Link de Pagamento' esta habilitado na aplicacao EFI");
+        return res.send(JSON.stringify({
+          error: "Credenciais EFI sem permissao para criar cobrancas. Verifique se o escopo 'Link de Pagamento' esta habilitado na aplicacao em sua conta EFI Pay.",
+          detail: chargeText.slice(0, 300),
+        }), 401, CORS_HEADERS);
+      }
+
+      let chargeData;
+      try {
+        chargeData = JSON.parse(chargeText);
+      } catch (parseErr) {
+        error("EFI charge parse error: " + chargeText.slice(0, 300));
+        return res.send(JSON.stringify({ error: "Resposta inesperada da EFI: " + chargeText.slice(0, 200) }), 500, CORS_HEADERS);
+      }
       log("EFI charge parsed: " + JSON.stringify(chargeData));
 
       if (!chargeRes.ok) {
