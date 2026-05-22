@@ -12,10 +12,12 @@ const CORS_HEADERS = {
   "Content-Type": "application/json",
 };
 
-// Obtém token OAuth2 da EFI (produção)
+// URL base da API EFI (producao)
+const EFI_BASE = "https://api.efipay.com.br";
+
 async function getEfiToken(clientId, clientSecret) {
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const res = await fetch("https://api.efipay.com.br/v1/authorize", {
+  const res = await fetch(`${EFI_BASE}/v1/authorize`, {
     method: "POST",
     headers: {
       "Authorization": `Basic ${credentials}`,
@@ -39,19 +41,20 @@ export default async ({ req, res, log, error }) => {
     .setKey(process.env.APPWRITE_API_KEY);
 
   const db = new Databases(client);
-  const DB_ID       = process.env.APPWRITE_DATABASE_ID;
+  const DB_ID        = process.env.APPWRITE_DATABASE_ID;
   const COL_PROFILES = process.env.APPWRITE_COLLECTION_PROFILES;
   const EFI_CLIENT_ID     = process.env.EFI_CLIENT_ID;
   const EFI_CLIENT_SECRET = process.env.EFI_CLIENT_SECRET;
   const APP_URL = process.env.APP_BASE_URL || "https://bloquinhodigital.web.app";
+  const FUNCTION_URL = process.env.FUNCTION_URL || "";
 
   log(`${req.method} ${req.path}`);
 
-  // ── Criar cobrança EFI ───────────────────────────────────────────────────
+  // ── Criar link de pagamento EFI (one-step) ───────────────────────────────
   if (req.method === "POST" && req.path === "/create-charge") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-      const { userId, plan, customerName, customerCpf, customerEmail, customerPhone } = body || {};
+      const { userId, plan, customerName, customerCpf, customerEmail } = body || {};
 
       if (!userId || !plan || !PLAN_PRICES[plan]) {
         return res.send(JSON.stringify({ error: "Parametros invalidos" }), 400, CORS_HEADERS);
@@ -63,8 +66,12 @@ export default async ({ req, res, log, error }) => {
       const price = PLAN_PRICES[plan];
       const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET);
 
-      // Criar cobrança com link de pagamento (boleto + pix + cartão)
-      const chargeRes = await fetch("https://api.efipay.com.br/v1/charge", {
+      // Validade do link: 7 dias
+      const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        .toISOString().split("T")[0];
+
+      // One-step: cria cobrança + link em uma única chamada
+      const chargeRes = await fetch(`${EFI_BASE}/v1/charge/one-step/link`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -76,55 +83,44 @@ export default async ({ req, res, log, error }) => {
             value: price.amountCents,
             amount: 1,
           }],
+          customer: {
+            name: customerName,
+            cpf: customerCpf.replace(/\D/g, ""),
+            ...(customerEmail ? { email: customerEmail } : {}),
+          },
           metadata: {
             custom_id: `${userId}|${plan}`,
-            notification_url: `${process.env.FUNCTION_URL}/webhook`,
+            notification_url: `${FUNCTION_URL}/webhook`,
           },
           settings: {
             payment_method: "all",
+            expire_at: expireAt,
             return_url: `${APP_URL}/payment-success?plan=${plan}&userId=${userId}`,
           },
         }),
       });
 
       const chargeData = await chargeRes.json();
+      log("EFI response: " + JSON.stringify(chargeData));
+
       if (!chargeRes.ok) {
         error("EFI charge error: " + JSON.stringify(chargeData));
-        return res.send(JSON.stringify({ error: "Erro ao criar cobranca EFI", detail: chargeData }), 500, CORS_HEADERS);
+        return res.send(JSON.stringify({
+          error: "Erro ao criar cobranca EFI",
+          detail: chargeData
+        }), 500, CORS_HEADERS);
       }
 
-      const chargeId = chargeData.data?.charge_id;
+      const paymentUrl = chargeData.data?.payment_url;
+      const chargeId   = chargeData.data?.charge_id;
 
-      // Gerar link de pagamento
-      const linkRes = await fetch(`https://api.efipay.com.br/v1/charge/${chargeId}/link`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          billet_discount: 0,
-          card_discount: 0,
-          conditional_discount: { type: "percentage", value: 0, until_date: "" },
-          message: "",
-          expire_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          request_delivery_address: false,
-          payment_method: "all",
-        }),
-      });
-
-      const linkData = await linkRes.json();
-      if (!linkRes.ok) {
-        error("EFI link error: " + JSON.stringify(linkData));
-        return res.send(JSON.stringify({ error: "Erro ao gerar link de pagamento", detail: linkData }), 500, CORS_HEADERS);
+      if (!paymentUrl) {
+        error("EFI sem payment_url: " + JSON.stringify(chargeData));
+        return res.send(JSON.stringify({ error: "EFI nao retornou link de pagamento" }), 500, CORS_HEADERS);
       }
 
-      log(`Cobranca criada: charge_id=${chargeId} userId=${userId} plano=${plan}`);
-      return res.send(JSON.stringify({
-        chargeId,
-        paymentUrl: linkData.data?.payment_url,
-        status: chargeData.data?.status,
-      }), 200, CORS_HEADERS);
+      log(`Link criado: charge_id=${chargeId} userId=${userId} plano=${plan}`);
+      return res.send(JSON.stringify({ chargeId, paymentUrl }), 200, CORS_HEADERS);
 
     } catch (e) {
       error("create-charge error: " + e.message);
@@ -136,7 +132,7 @@ export default async ({ req, res, log, error }) => {
   if (req.method === "POST" && req.path === "/webhook") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-      log("Webhook EFI recebido: " + JSON.stringify(body));
+      log("Webhook EFI: " + JSON.stringify(body));
 
       const chargeId = body?.charge_id || body?.data?.charge_id;
       const status   = body?.status    || body?.data?.status;
@@ -145,9 +141,8 @@ export default async ({ req, res, log, error }) => {
         return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
       }
 
-      // Buscar detalhes da cobrança para pegar o custom_id (userId|plan)
       const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET);
-      const detailRes = await fetch(`https://api.efipay.com.br/v1/charge/${chargeId}`, {
+      const detailRes = await fetch(`${EFI_BASE}/v1/charge/${chargeId}`, {
         headers: { "Authorization": `Bearer ${token}` },
       });
       const detail = await detailRes.json();
