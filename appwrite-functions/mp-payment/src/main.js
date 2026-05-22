@@ -1,10 +1,8 @@
 import { Client, Databases, Query } from "node-appwrite";
 import https from "https";
 
-const PLAN_PRICES = {
-  monthly: { amountCents: 29.90, label: "Bloquinho Digital - Plano Pro Mensal", months: 1  },
-  yearly:  { amountCents: 299.90, label: "Bloquinho Digital - Plano Pro Anual",  months: 12 },
-};
+const PRICE_PER_MONTH = 29.90;
+const MAX_MONTHS = 12;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -118,16 +116,21 @@ export default async ({ req, res, log, error }) => {
   if (req.method === "POST" && req.path === "/create-charge") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-      const { userId, plan, customerName, customerCpf, customerEmail } = body || {};
+      const { userId, months, customerName, customerCpf, customerEmail } = body || {};
 
-      if (!userId || !plan || !PLAN_PRICES[plan]) {
+      const parsedMonths = parseInt(months, 10);
+      if (!userId || !parsedMonths || parsedMonths < 1 || parsedMonths > MAX_MONTHS) {
         return res.send(JSON.stringify({ error: "Parametros invalidos" }), 400, CORS_HEADERS);
       }
       if (!customerName || !customerCpf) {
         return res.send(JSON.stringify({ error: "Nome e CPF sao obrigatorios" }), 400, CORS_HEADERS);
       }
 
-      const price = PLAN_PRICES[plan];
+      const totalValue = (PRICE_PER_MONTH * parsedMonths).toFixed(2);
+      const label = parsedMonths === 1
+        ? "Bloquinho Digital - Plano Pro 1 mes"
+        : `Bloquinho Digital - Plano Pro ${parsedMonths} meses`;
+
       const agent = createTlsAgent(EFI_CERT_BASE64);
       const token = await getPixToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET, agent, log);
 
@@ -141,13 +144,13 @@ export default async ({ req, res, log, error }) => {
           nome: customerName,
         },
         valor: {
-          original: price.amountCents.toFixed(2),
+          original: totalValue,
         },
-        chave: process.env.EFI_PIX_KEY, // chave Pix cadastrada na conta EFI
-        solicitacaoPagador: price.label,
+        chave: process.env.EFI_PIX_KEY,
+        solicitacaoPagador: label,
         infoAdicionais: [
-          { nome: "userId", valor: userId },
-          { nome: "plano",  valor: plan   },
+          { nome: "userId",  valor: userId                    },
+          { nome: "meses",   valor: String(parsedMonths)      },
         ],
       };
 
@@ -254,16 +257,15 @@ export default async ({ req, res, log, error }) => {
 
         const infos = cobData.infoAdicionais || [];
         const userId = infos.find(i => i.nome === "userId")?.valor;
-        const plan   = infos.find(i => i.nome === "plano")?.valor;
+        const meses  = parseInt(infos.find(i => i.nome === "meses")?.valor || "0", 10);
 
-        if (!userId || !plan || !PLAN_PRICES[plan]) {
-          error("Webhook Pix: userId/plano invalido txid=" + txid);
+        if (!userId || !meses || meses < 1) {
+          error("Webhook Pix: userId/meses invalido txid=" + txid);
           continue;
         }
 
-        const months = PLAN_PRICES[plan].months;
         const expiresAt = new Date();
-        expiresAt.setMonth(expiresAt.getMonth() + months);
+        expiresAt.setMonth(expiresAt.getMonth() + meses);
 
         const profiles = await db.listDocuments(DB_ID, COL_PROFILES, [
           Query.equal("userId", userId),
@@ -281,7 +283,7 @@ export default async ({ req, res, log, error }) => {
           updatedAt: new Date().toISOString(),
         });
 
-        log(`Plano PRO ativado via Pix: userId=${userId} ate ${expiresAt.toISOString()}`);
+        log(`Plano PRO ativado via Pix: userId=${userId} meses=${meses} ate ${expiresAt.toISOString()}`);
       }
 
       return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);

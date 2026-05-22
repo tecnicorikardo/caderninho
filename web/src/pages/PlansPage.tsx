@@ -4,6 +4,9 @@ import type { PlanStatus } from "@/lib/plan";
 import DashboardLayout from "@/ui/DashboardLayout";
 
 const FUNCTION_URL = import.meta.env.VITE_APPWRITE_FUNCTION_URL as string;
+const PRICE_PER_MONTH = 29.90;
+
+const MONTH_OPTIONS = [1, 2, 3, 6, 12];
 
 type Props = {
   user: AppUser;
@@ -20,19 +23,20 @@ type PixData = {
 };
 
 export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysLeft = 0 }: Props) {
-  const [loading, setLoading] = useState<"monthly" | "yearly" | null>(null);
+  const [months, setMonths] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
-  // Dados do cliente para a cobrança
   const [customerName, setCustomerName] = useState("");
   const [customerCpf, setCustomerCpf]   = useState("");
   const [customerEmail, setCustomerEmail] = useState(user.email || "");
-  const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly" | null>(null);
 
   const isPro   = currentPlan === "pro";
   const isTrial = currentPlan === "trial";
+  const total   = (PRICE_PER_MONTH * months).toFixed(2).replace(".", ",");
 
   function formatCpf(v: string) {
     return v.replace(/\D/g, "").slice(0, 11)
@@ -41,7 +45,7 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
       .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
   }
 
-  async function handleSubscribe(plan: "monthly" | "yearly") {
+  async function handleSubscribe() {
     if (!customerName.trim()) { setError("Informe seu nome completo."); return; }
     const cpfClean = customerCpf.replace(/\D/g, "");
     if (cpfClean.length !== 11) { setError("Informe um CPF valido (11 digitos)."); return; }
@@ -51,17 +55,17 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
       return;
     }
 
-    setLoading(plan);
+    setLoading(true);
     setError(null);
     setPixData(null);
     try {
-      console.log("[PlansPage] chamando create-charge", { FUNCTION_URL, plan });
+      console.log("[PlansPage] chamando create-charge", { FUNCTION_URL, months });
       const res = await fetch(`${FUNCTION_URL}/create-charge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.uid,
-          plan,
+          months,
           customerName: customerName.trim(),
           customerCpf: cpfClean,
           customerEmail: customerEmail.trim(),
@@ -70,14 +74,12 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
       const data = await res.json();
       console.log("[PlansPage] resposta create-charge", res.status, data);
       if (!res.ok || data.error) throw new Error(data.error || "Erro ao criar cobranca");
-
-      // Exibe o QR Code Pix
       setPixData(data as PixData);
     } catch (e) {
       console.error("[PlansPage] erro create-charge", e);
       setError(e instanceof Error ? e.message : "Erro ao iniciar pagamento");
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   }
 
@@ -90,7 +92,7 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
 
   return (
     <DashboardLayout title="Planos">
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-lg mx-auto space-y-6">
 
         {/* Status atual */}
         {isTrial && (
@@ -131,51 +133,66 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
           </div>
         )}
 
-        {/* Planos */}
-        {!isPro && (
+        {/* Plano Pro */}
+        {!isPro && !pixData && (
           <>
-            <h2 className="text-lg font-semibold text-gray-800">Escolha seu plano</h2>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Mensal */}
-              <button
-                onClick={() => setSelectedPlan(selectedPlan === "monthly" ? null : "monthly")}
-                className={`rounded-2xl border-2 p-6 text-left transition-all ${selectedPlan === "monthly" ? "border-teal-500 bg-teal-50" : "border-slate-200 bg-white hover:border-teal-300"}`}
-              >
-                <div className="text-xs font-bold text-teal-600 uppercase tracking-wider mb-1">Mensal</div>
-                <div className="text-3xl font-bold text-gray-900">R$ 29,90</div>
-                <div className="text-sm text-gray-500">por mes</div>
-                <ul className="space-y-1.5 text-sm text-gray-600 mt-4">
+            <div className="rounded-2xl bg-white border-2 border-teal-500 p-6 space-y-5">
+              <div>
+                <div className="text-xs font-bold text-teal-600 uppercase tracking-wider mb-1">Plano Pro</div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-bold text-gray-900">R$ 29,90</span>
+                  <span className="text-sm text-gray-500">/ mes</span>
+                </div>
+                <ul className="space-y-1.5 text-sm text-gray-600 mt-3">
                   <li>✅ Clientes e produtos ilimitados</li>
                   <li>✅ Registro de vendas e fiado</li>
                   <li>✅ Relatorio financeiro</li>
                   <li>✅ Importar/exportar planilha</li>
                 </ul>
-              </button>
+              </div>
 
-              {/* Anual */}
-              <button
-                onClick={() => setSelectedPlan(selectedPlan === "yearly" ? null : "yearly")}
-                className={`rounded-2xl border-2 p-6 text-left relative transition-all ${selectedPlan === "yearly" ? "border-teal-500 bg-teal-50" : "border-teal-400 bg-white hover:border-teal-500"}`}
-              >
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                  MELHOR VALOR
+              {/* Seletor de meses */}
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                  Quantos meses deseja pagar?
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {MONTH_OPTIONS.map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setMonths(m)}
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${
+                        months === m
+                          ? "border-teal-500 bg-teal-500 text-white"
+                          : "border-slate-200 bg-white text-gray-700 hover:border-teal-300"
+                      }`}
+                    >
+                      {m === 1 ? "1 mes" : `${m} meses`}
+                    </button>
+                  ))}
                 </div>
-                <div className="text-xs font-bold text-teal-600 uppercase tracking-wider mb-1">Anual</div>
-                <div className="text-3xl font-bold text-gray-900">R$ 299,90</div>
-                <div className="text-sm text-gray-500">por ano <span className="text-green-600 font-medium">(economize R$ 58,80)</span></div>
-                <ul className="space-y-1.5 text-sm text-gray-600 mt-4">
-                  <li>✅ Tudo do plano mensal</li>
-                  <li>✅ 12 meses de acesso</li>
-                  <li>✅ Equivale a R$ 24,99/mes</li>
-                </ul>
+              </div>
+
+              {/* Resumo do valor */}
+              <div className="rounded-xl bg-teal-50 border border-teal-200 p-3 flex items-center justify-between">
+                <span className="text-sm text-teal-700">
+                  {months === 1 ? "1 mes" : `${months} meses`} de acesso Pro
+                </span>
+                <span className="text-lg font-bold text-teal-800">R$ {total}</span>
+              </div>
+
+              <button
+                onClick={() => setShowForm(true)}
+                className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-3 text-sm font-semibold transition-colors"
+              >
+                Assinar agora — R$ {total}
               </button>
             </div>
 
-            {/* Formulario de dados para cobrança */}
-            {selectedPlan && !pixData && (
+            {/* Formulario */}
+            {showForm && (
               <div className="rounded-2xl bg-white border border-slate-200 p-5 space-y-4">
-                <h3 className="text-sm font-semibold text-gray-800">Dados para a cobranca</h3>
+                <h3 className="text-sm font-semibold text-gray-800">Dados para o Pix</h3>
 
                 <div>
                   <label className="inp-label">Nome completo *</label>
@@ -218,66 +235,65 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
                 )}
 
                 <button
-                  onClick={() => handleSubscribe(selectedPlan)}
-                  disabled={loading !== null}
+                  onClick={handleSubscribe}
+                  disabled={loading}
                   className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-3 text-sm font-semibold disabled:opacity-50 transition-colors"
                 >
-                  {loading
-                    ? "Gerando cobranca..."
-                    : selectedPlan === "monthly"
-                      ? "Assinar por R$ 29,90/mes"
-                      : "Assinar por R$ 299,90/ano"}
+                  {loading ? "Gerando Pix..." : `Gerar Pix — R$ ${total}`}
                 </button>
 
-                <p className="text-xs text-gray-400 text-center">
-                  Voce sera redirecionado para a pagina de pagamento seguro (Pix, boleto ou cartao)
-                </p>
-              </div>
-            )}
-
-            {/* QR Code Pix */}
-            {pixData && (
-              <div className="rounded-2xl bg-white border border-teal-200 p-5 space-y-4 text-center">
-                <div className="text-2xl">📱</div>
-                <h3 className="text-base font-semibold text-gray-800">Pague com Pix</h3>
-                <p className="text-sm text-gray-500">
-                  Escaneie o QR Code ou copie o codigo Pix abaixo. O plano sera ativado automaticamente apos o pagamento.
-                </p>
-
-                {pixData.qrCodeImage && (
-                  <div className="flex justify-center">
-                    <img
-                      src={pixData.qrCodeImage}
-                      alt="QR Code Pix"
-                      className="w-48 h-48 rounded-xl border border-slate-200"
-                    />
-                  </div>
-                )}
-
-                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-gray-600 break-all font-mono text-left">
-                  {pixData.pixCopiaECola}
-                </div>
-
                 <button
-                  onClick={handleCopy}
-                  className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-3 text-sm font-semibold transition-colors"
+                  onClick={() => { setShowForm(false); setError(null); }}
+                  className="w-full text-xs text-gray-400 underline"
                 >
-                  {copied ? "✅ Copiado!" : "Copiar codigo Pix"}
-                </button>
-
-                <p className="text-xs text-gray-400">
-                  O codigo expira em 30 minutos. Apos o pagamento, aguarde alguns segundos para o plano ser ativado.
-                </p>
-
-                <button
-                  onClick={() => { setPixData(null); setSelectedPlan(null); }}
-                  className="text-xs text-gray-400 underline"
-                >
-                  Cancelar e voltar
+                  Voltar
                 </button>
               </div>
             )}
           </>
+        )}
+
+        {/* QR Code Pix */}
+        {pixData && (
+          <div className="rounded-2xl bg-white border border-teal-200 p-5 space-y-4 text-center">
+            <div className="text-3xl">📱</div>
+            <h3 className="text-base font-semibold text-gray-800">Pague com Pix</h3>
+            <p className="text-sm text-gray-500">
+              Escaneie o QR Code ou copie o codigo abaixo. O plano sera ativado automaticamente apos o pagamento.
+            </p>
+
+            {pixData.qrCodeImage && (
+              <div className="flex justify-center">
+                <img
+                  src={pixData.qrCodeImage}
+                  alt="QR Code Pix"
+                  className="w-52 h-52 rounded-xl border border-slate-200"
+                />
+              </div>
+            )}
+
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-gray-600 break-all font-mono text-left">
+              {pixData.pixCopiaECola}
+            </div>
+
+            <button
+              onClick={handleCopy}
+              className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-3 text-sm font-semibold transition-colors"
+            >
+              {copied ? "✅ Copiado!" : "Copiar codigo Pix"}
+            </button>
+
+            <p className="text-xs text-gray-400">
+              Codigo expira em 30 minutos. Apos o pagamento, aguarde alguns segundos.
+            </p>
+
+            <button
+              onClick={() => { setPixData(null); setShowForm(false); setError(null); }}
+              className="text-xs text-gray-400 underline"
+            >
+              Cancelar e voltar
+            </button>
+          </div>
         )}
 
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-xs text-gray-500 space-y-1">
