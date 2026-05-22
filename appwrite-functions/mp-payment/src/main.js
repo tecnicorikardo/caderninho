@@ -15,8 +15,12 @@ const CORS_HEADERS = {
 // URL base da API EFI Cobrancas (producao)
 const EFI_BASE = "https://cobrancas.api.efipay.com.br";
 
-async function getEfiToken(clientId, clientSecret) {
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+async function getEfiToken(clientId, clientSecret, logFn) {
+  const raw = `${clientId}:${clientSecret}`;
+  // btoa funciona no Node 16+ e é mais confiavel que Buffer em alguns ambientes
+  const credentials = Buffer.from(raw).toString("base64");
+  logFn(`Auth: credencial base64 tamanho=${credentials.length} raw_tamanho=${raw.length}`);
+
   const res = await fetch(`${EFI_BASE}/v1/authorize`, {
     method: "POST",
     headers: {
@@ -27,7 +31,9 @@ async function getEfiToken(clientId, clientSecret) {
   });
 
   const text = await res.text();
-  if (!res.ok || text.trim().startsWith("<") || text === "Unauthorized") {
+  logFn(`Auth response status=${res.status} body=${text.slice(0, 200)}`);
+
+  if (!res.ok || text === "Unauthorized" || text.trim().startsWith("<")) {
     throw new Error(`EFI auth falhou (${res.status}): ${text.slice(0, 300)}`);
   }
   let data;
@@ -72,7 +78,7 @@ export default async ({ req, res, log, error }) => {
       }
 
       const price = PLAN_PRICES[plan];
-      const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET);
+      const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET, log);
 
       // Validade do link: 7 dias
       const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -157,7 +163,7 @@ export default async ({ req, res, log, error }) => {
         return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
       }
 
-      const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET);
+      const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET, log);
       const detailRes = await fetch(`${EFI_BASE}/v1/charge/${chargeId}`, {
         headers: { "Authorization": `Bearer ${token}` },
       });
