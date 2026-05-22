@@ -12,9 +12,18 @@ type Props = {
   trialDaysLeft?: number;
 };
 
+type PixData = {
+  txid: string;
+  pixCopiaECola: string;
+  qrCodeImage: string | null;
+  expiresIn: number;
+};
+
 export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysLeft = 0 }: Props) {
   const [loading, setLoading] = useState<"monthly" | "yearly" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pixData, setPixData] = useState<PixData | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Dados do cliente para a cobrança
   const [customerName, setCustomerName] = useState("");
@@ -39,6 +48,7 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
 
     setLoading(plan);
     setError(null);
+    setPixData(null);
     try {
       const res = await fetch(`${FUNCTION_URL}/create-charge`, {
         method: "POST",
@@ -54,12 +64,20 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || "Erro ao criar cobranca");
 
-      // Redireciona para o link de pagamento EFI
-      window.location.href = data.paymentUrl;
+      // Exibe o QR Code Pix
+      setPixData(data as PixData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao iniciar pagamento");
+    } finally {
       setLoading(null);
     }
+  }
+
+  async function handleCopy() {
+    if (!pixData) return;
+    await navigator.clipboard.writeText(pixData.pixCopiaECola);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
   }
 
   return (
@@ -147,7 +165,7 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
             </div>
 
             {/* Formulario de dados para cobrança */}
-            {selectedPlan && (
+            {selectedPlan && !pixData && (
               <div className="rounded-2xl bg-white border border-slate-200 p-5 space-y-4">
                 <h3 className="text-sm font-semibold text-gray-800">Dados para a cobranca</h3>
 
@@ -208,11 +226,54 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
                 </p>
               </div>
             )}
+
+            {/* QR Code Pix */}
+            {pixData && (
+              <div className="rounded-2xl bg-white border border-teal-200 p-5 space-y-4 text-center">
+                <div className="text-2xl">📱</div>
+                <h3 className="text-base font-semibold text-gray-800">Pague com Pix</h3>
+                <p className="text-sm text-gray-500">
+                  Escaneie o QR Code ou copie o codigo Pix abaixo. O plano sera ativado automaticamente apos o pagamento.
+                </p>
+
+                {pixData.qrCodeImage && (
+                  <div className="flex justify-center">
+                    <img
+                      src={pixData.qrCodeImage}
+                      alt="QR Code Pix"
+                      className="w-48 h-48 rounded-xl border border-slate-200"
+                    />
+                  </div>
+                )}
+
+                <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-gray-600 break-all font-mono text-left">
+                  {pixData.pixCopiaECola}
+                </div>
+
+                <button
+                  onClick={handleCopy}
+                  className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-3 text-sm font-semibold transition-colors"
+                >
+                  {copied ? "✅ Copiado!" : "Copiar codigo Pix"}
+                </button>
+
+                <p className="text-xs text-gray-400">
+                  O codigo expira em 30 minutos. Apos o pagamento, aguarde alguns segundos para o plano ser ativado.
+                </p>
+
+                <button
+                  onClick={() => { setPixData(null); setSelectedPlan(null); }}
+                  className="text-xs text-gray-400 underline"
+                >
+                  Cancelar e voltar
+                </button>
+              </div>
+            )}
           </>
         )}
 
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-xs text-gray-500 space-y-1">
-          <div>💳 Pagamento seguro via EFI Bank — Pix, boleto ou cartao</div>
+          <div>💚 Pagamento seguro via Pix — instantaneo e sem taxas extras</div>
           <div>🔒 Seus dados estao protegidos</div>
           <div>📅 1 mes gratuito para novos usuarios</div>
         </div>

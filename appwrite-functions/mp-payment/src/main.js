@@ -1,8 +1,9 @@
 import { Client, Databases, Query } from "node-appwrite";
+import https from "https";
 
 const PLAN_PRICES = {
-  monthly: { amountCents: 2990,  label: "Bloquinho Digital - Plano Pro Mensal",  months: 1  },
-  yearly:  { amountCents: 29990, label: "Bloquinho Digital - Plano Pro Anual",    months: 12 },
+  monthly: { amountCents: 29.90, label: "Bloquinho Digital - Plano Pro Mensal", months: 1  },
+  yearly:  { amountCents: 299.90, label: "Bloquinho Digital - Plano Pro Anual",  months: 12 },
 };
 
 const CORS_HEADERS = {
@@ -12,33 +13,75 @@ const CORS_HEADERS = {
   "Content-Type": "application/json",
 };
 
-// URL base da API EFI Cobrancas (producao)
-const EFI_BASE = "https://cobrancas.api.efipay.com.br";
+// URL base da API Pix EFI (producao)
+const EFI_PIX_BASE = "https://pix.api.efipay.com.br";
 
-async function getEfiToken(clientId, clientSecret, logFn) {
-  const raw = `${clientId}:${clientSecret}`;
-  // btoa funciona no Node 16+ e é mais confiavel que Buffer em alguns ambientes
-  const credentials = Buffer.from(raw).toString("base64");
-  logFn(`Auth: credencial base64 tamanho=${credentials.length} raw_tamanho=${raw.length}`);
+/**
+ * Cria um agente HTTPS com o certificado mTLS (.p12 em base64).
+ * A API Pix da EFI exige autenticacao mutua TLS em todas as requisicoes.
+ */
+function createTlsAgent(certBase64, passphrase = "") {
+  const pfx = Buffer.from(certBase64, "base64");
+  return new https.Agent({ pfx, passphrase, rejectUnauthorized: true });
+}
 
-  const res = await fetch(`${EFI_BASE}/v1/authorize`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Basic ${credentials}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ grant_type: "client_credentials" }),
+/**
+ * Faz uma requisicao HTTPS com suporte a mTLS usando o modulo nativo do Node.
+ * O fetch nativo nao suporta mTLS, por isso usamos http.request diretamente.
+ */
+function httpsRequest(url, options, body, agent) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const reqOptions = {
+      hostname: parsed.hostname,
+      path: parsed.pathname + parsed.search,
+      method: options.method || "GET",
+      headers: options.headers || {},
+      agent,
+    };
+
+    const req = https.request(reqOptions, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, text: data }));
+    });
+
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
   });
+}
 
-  const text = await res.text();
-  logFn(`Auth response status=${res.status} body=${text.slice(0, 200)}`);
+/**
+ * Obtem o access_token da API Pix EFI via OAuth2 com mTLS.
+ */
+async function getPixToken(clientId, clientSecret, agent, logFn) {
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-  if (!res.ok || text === "Unauthorized" || text.trim().startsWith("<")) {
-    throw new Error(`EFI auth falhou (${res.status}): ${text.slice(0, 300)}`);
+  const result = await httpsRequest(
+    `${EFI_PIX_BASE}/oauth/token`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${credentials}`,
+        "Content-Type": "application/json",
+      },
+    },
+    JSON.stringify({ grant_type: "client_credentials" }),
+    agent
+  );
+
+  logFn(`Pix auth status=${result.status} body=${result.text.slice(0, 200)}`);
+
+  if (result.status !== 200) {
+    throw new Error(`EFI Pix auth falhou (${result.status}): ${result.text.slice(0, 300)}`);
   }
+
   let data;
-  try { data = JSON.parse(text); } catch { throw new Error("EFI auth parse error: " + text.slice(0, 300)); }
-  if (!data.access_token) throw new Error("EFI sem access_token: " + text.slice(0, 300));
+  try { data = JSON.parse(result.text); } catch {
+    throw new Error("EFI Pix auth parse error: " + result.text.slice(0, 300));
+  }
+  if (!data.access_token) throw new Error("EFI Pix sem access_token: " + result.text.slice(0, 300));
   return data.access_token;
 }
 
@@ -57,14 +100,21 @@ export default async ({ req, res, log, error }) => {
   const COL_PROFILES = process.env.APPWRITE_COLLECTION_PROFILES;
   const EFI_CLIENT_ID     = process.env.EFI_CLIENT_ID;
   const EFI_CLIENT_SECRET = process.env.EFI_CLIENT_SECRET;
-  const APP_URL = process.env.APP_BASE_URL || "https://bloquinhodigital.web.app";
+  const EFI_CERT_BASE64   = process.env.EFI_CERT_BASE64;
+  const APP_URL      = process.env.APP_BASE_URL || "https://bloquinhodigital.web.app";
   const FUNCTION_URL = process.env.FUNCTION_URL || "";
 
   log(`${req.method} ${req.path}`);
   log(`EFI_CLIENT_ID presente: ${!!EFI_CLIENT_ID} | tamanho: ${EFI_CLIENT_ID?.length ?? 0}`);
   log(`EFI_CLIENT_SECRET presente: ${!!EFI_CLIENT_SECRET} | tamanho: ${EFI_CLIENT_SECRET?.length ?? 0}`);
+  log(`EFI_CERT_BASE64 presente: ${!!EFI_CERT_BASE64} | tamanho: ${EFI_CERT_BASE64?.length ?? 0}`);
 
-  // ── Criar link de pagamento EFI (one-step) ───────────────────────────────
+  if (!EFI_CERT_BASE64) {
+    error("EFI_CERT_BASE64 nao configurado");
+    return res.send(JSON.stringify({ error: "Certificado EFI nao configurado" }), 500, CORS_HEADERS);
+  }
+
+  // ── Criar cobranca Pix ───────────────────────────────────────────────────
   if (req.method === "POST" && req.path === "/create-charge") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
@@ -78,92 +128,88 @@ export default async ({ req, res, log, error }) => {
       }
 
       const price = PLAN_PRICES[plan];
-      const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET, log);
+      const agent = createTlsAgent(EFI_CERT_BASE64);
+      const token = await getPixToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET, agent, log);
 
-      // Validade do link: 7 dias
-      const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        .toISOString().split("T")[0];
+      // Validade da cobranca Pix: 30 minutos (em segundos)
+      const expiracao = 1800;
 
-      const chargePayload = {
-        items: [{
-          name: price.label,
-          value: price.amountCents,
-          amount: 1,
-        }],
-        customer: {
-          name: customerName,
+      const cobPayload = {
+        calendario: { expiracao },
+        devedor: {
           cpf: customerCpf.replace(/\D/g, ""),
-          ...(customerEmail ? { email: customerEmail } : {}),
+          nome: customerName,
         },
-        metadata: {
-          custom_id: `${userId}|${plan}`,
-          notification_url: `${FUNCTION_URL}/webhook`,
+        valor: {
+          original: price.amountCents.toFixed(2),
         },
-        settings: {
-          payment_method: "all",
-          expire_at: expireAt,
-          return_url: `${APP_URL}/payment-success?plan=${plan}&userId=${userId}`,
-        },
+        chave: process.env.EFI_PIX_KEY, // chave Pix cadastrada na conta EFI
+        solicitacaoPagador: price.label,
+        infoAdicionais: [
+          { nome: "userId", valor: userId },
+          { nome: "plano",  valor: plan   },
+        ],
       };
 
-      log("EFI charge payload: " + JSON.stringify(chargePayload));
-      log("EFI token primeiros 50 chars: " + token.slice(0, 50));
+      log("Pix cob payload: " + JSON.stringify(cobPayload));
 
-      const chargeRes = await fetch(`${EFI_BASE}/v1/charge/one-step/link`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const cobResult = await httpsRequest(
+        `${EFI_PIX_BASE}/v2/cob`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-        body: JSON.stringify(chargePayload),
-      });
+        JSON.stringify(cobPayload),
+        agent
+      );
 
-      const chargeText = await chargeRes.text();
-      log("EFI charge status: " + chargeRes.status);
-      log("EFI charge raw response: " + chargeText.slice(0, 500));
-      log("EFI charge headers: " + JSON.stringify(Object.fromEntries(chargeRes.headers.entries())));
+      log("Pix cob status: " + cobResult.status);
+      log("Pix cob response: " + cobResult.text.slice(0, 500));
 
-      if (chargeText.trim().startsWith("<")) {
-        error("EFI retornou HTML: " + chargeText.slice(0, 300));
-        return res.send(JSON.stringify({ error: "EFI retornou HTML - verifique credenciais e endpoint" }), 500, CORS_HEADERS);
+      let cobData;
+      try { cobData = JSON.parse(cobResult.text); } catch {
+        error("Pix cob parse error: " + cobResult.text.slice(0, 300));
+        return res.send(JSON.stringify({ error: "Resposta inesperada da EFI Pix: " + cobResult.text.slice(0, 200) }), 500, CORS_HEADERS);
       }
 
-      // Trata resposta 401 Unauthorized (texto puro, sem JSON)
-      if (chargeRes.status === 401) {
-        error("EFI charge 401 Unauthorized - verifique se o escopo 'Link de Pagamento' esta habilitado na aplicacao EFI");
-        return res.send(JSON.stringify({
-          error: "Credenciais EFI sem permissao para criar cobrancas. Verifique se o escopo 'Link de Pagamento' esta habilitado na aplicacao em sua conta EFI Pay.",
-          detail: chargeText.slice(0, 300),
-        }), 401, CORS_HEADERS);
+      if (cobResult.status !== 201) {
+        error("Pix cob error: " + JSON.stringify(cobData));
+        return res.send(JSON.stringify({ error: "Erro ao criar cobranca Pix", detail: cobData }), 500, CORS_HEADERS);
       }
 
-      let chargeData;
-      try {
-        chargeData = JSON.parse(chargeText);
-      } catch (parseErr) {
-        error("EFI charge parse error: " + chargeText.slice(0, 300));
-        return res.send(JSON.stringify({ error: "Resposta inesperada da EFI: " + chargeText.slice(0, 200) }), 500, CORS_HEADERS);
-      }
-      log("EFI charge parsed: " + JSON.stringify(chargeData));
+      const txid = cobData.txid;
+      const pixCopiaECola = cobData.pixCopiaECola;
 
-      if (!chargeRes.ok) {
-        error("EFI charge error: " + JSON.stringify(chargeData));
-        return res.send(JSON.stringify({
-          error: "Erro ao criar cobranca EFI",
-          detail: chargeData
-        }), 500, CORS_HEADERS);
-      }
+      // Gera o QR Code da cobranca
+      const qrResult = await httpsRequest(
+        `${EFI_PIX_BASE}/v2/loc/${cobData.loc.id}/qrcode`,
+        {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${token}` },
+        },
+        null,
+        agent
+      );
 
-      const paymentUrl = chargeData.data?.payment_url;
-      const chargeId   = chargeData.data?.charge_id;
+      log("Pix QR status: " + qrResult.status);
 
-      if (!paymentUrl) {
-        error("EFI sem payment_url: " + JSON.stringify(chargeData));
-        return res.send(JSON.stringify({ error: "EFI nao retornou link de pagamento" }), 500, CORS_HEADERS);
-      }
+      let qrData = {};
+      try { qrData = JSON.parse(qrResult.text); } catch { /* ignora */ }
 
-      log(`Link criado: charge_id=${chargeId} userId=${userId} plano=${plan}`);
-      return res.send(JSON.stringify({ chargeId, paymentUrl }), 200, CORS_HEADERS);
+      const qrCodeImage = qrData.imagemQrcode || null;
+      const qrCodeText  = qrData.qrcode || pixCopiaECola;
+
+      log(`Pix criado: txid=${txid} userId=${userId} plano=${plan}`);
+
+      return res.send(JSON.stringify({
+        txid,
+        pixCopiaECola: qrCodeText,
+        qrCodeImage,
+        expiresIn: expiracao,
+      }), 200, CORS_HEADERS);
 
     } catch (e) {
       error("create-charge error: " + e.message);
@@ -171,53 +217,73 @@ export default async ({ req, res, log, error }) => {
     }
   }
 
-  // ── Webhook EFI ──────────────────────────────────────────────────────────
+  // ── Webhook Pix EFI ──────────────────────────────────────────────────────
+  // A EFI envia POST /webhook com o corpo: { "pix": [{ "txid", "valor", "horario", ... }] }
   if (req.method === "POST" && req.path === "/webhook") {
     try {
       const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-      log("Webhook EFI: " + JSON.stringify(body));
+      log("Webhook Pix: " + JSON.stringify(body));
 
-      const chargeId = body?.charge_id || body?.data?.charge_id;
-      const status   = body?.status    || body?.data?.status;
-
-      if (!chargeId || status !== "paid") {
+      const pixList = body?.pix || [];
+      if (pixList.length === 0) {
         return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
       }
 
-      const token = await getEfiToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET, log);
-      const detailRes = await fetch(`${EFI_BASE}/v1/charge/${chargeId}`, {
-        headers: { "Authorization": `Bearer ${token}` },
-      });
-      const detail = await detailRes.json();
-      const customId = detail.data?.metadata?.custom_id || "";
-      const [userId, plan] = customId.split("|");
+      const agent = createTlsAgent(EFI_CERT_BASE64);
+      const token = await getPixToken(EFI_CLIENT_ID, EFI_CLIENT_SECRET, agent, log);
 
-      if (!userId || !plan || !PLAN_PRICES[plan]) {
-        error("custom_id invalido: " + customId);
-        return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
+      for (const pix of pixList) {
+        const txid = pix.txid;
+        if (!txid) continue;
+
+        // Consulta a cobranca para pegar as infoAdicionais (userId e plano)
+        const cobResult = await httpsRequest(
+          `${EFI_PIX_BASE}/v2/cob/${txid}`,
+          {
+            method: "GET",
+            headers: { "Authorization": `Bearer ${token}` },
+          },
+          null,
+          agent
+        );
+
+        let cobData;
+        try { cobData = JSON.parse(cobResult.text); } catch { continue; }
+
+        if (cobData.status !== "CONCLUIDA") continue;
+
+        const infos = cobData.infoAdicionais || [];
+        const userId = infos.find(i => i.nome === "userId")?.valor;
+        const plan   = infos.find(i => i.nome === "plano")?.valor;
+
+        if (!userId || !plan || !PLAN_PRICES[plan]) {
+          error("Webhook Pix: userId/plano invalido txid=" + txid);
+          continue;
+        }
+
+        const months = PLAN_PRICES[plan].months;
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + months);
+
+        const profiles = await db.listDocuments(DB_ID, COL_PROFILES, [
+          Query.equal("userId", userId),
+          Query.limit(1),
+        ]);
+
+        if (profiles.documents.length === 0) {
+          error("Perfil nao encontrado: " + userId);
+          continue;
+        }
+
+        await db.updateDocument(DB_ID, COL_PROFILES, profiles.documents[0].$id, {
+          planStatus: "pro",
+          planExpiresAt: expiresAt.toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        log(`Plano PRO ativado via Pix: userId=${userId} ate ${expiresAt.toISOString()}`);
       }
 
-      const months = PLAN_PRICES[plan].months;
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + months);
-
-      const profiles = await db.listDocuments(DB_ID, COL_PROFILES, [
-        Query.equal("userId", userId),
-        Query.limit(1),
-      ]);
-
-      if (profiles.documents.length === 0) {
-        error("Perfil nao encontrado: " + userId);
-        return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
-      }
-
-      await db.updateDocument(DB_ID, COL_PROFILES, profiles.documents[0].$id, {
-        planStatus: "pro",
-        planExpiresAt: expiresAt.toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-
-      log(`Plano PRO ativado: userId=${userId} ate ${expiresAt.toISOString()}`);
       return res.send(JSON.stringify({ ok: true }), 200, CORS_HEADERS);
 
     } catch (e) {
