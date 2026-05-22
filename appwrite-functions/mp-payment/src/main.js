@@ -12,8 +12,8 @@ const CORS_HEADERS = {
   "Content-Type": "application/json",
 };
 
-// URL base da API EFI (producao)
-const EFI_BASE = "https://api.efipay.com.br";
+// URL base da API EFI Cobrancas (producao)
+const EFI_BASE = "https://cobrancas.api.efipay.com.br";
 
 async function getEfiToken(clientId, clientSecret) {
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
