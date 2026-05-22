@@ -46,10 +46,16 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
     const cpfClean = customerCpf.replace(/\D/g, "");
     if (cpfClean.length !== 11) { setError("Informe um CPF valido (11 digitos)."); return; }
 
+    if (!FUNCTION_URL) {
+      setError("URL da funcao nao configurada (VITE_APPWRITE_FUNCTION_URL).");
+      return;
+    }
+
     setLoading(plan);
     setError(null);
     setPixData(null);
     try {
+      console.log("[PlansPage] chamando create-charge", { FUNCTION_URL, plan });
       const res = await fetch(`${FUNCTION_URL}/create-charge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,11 +68,13 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
         }),
       });
       const data = await res.json();
+      console.log("[PlansPage] resposta create-charge", res.status, data);
       if (!res.ok || data.error) throw new Error(data.error || "Erro ao criar cobranca");
 
       // Exibe o QR Code Pix
       setPixData(data as PixData);
     } catch (e) {
+      console.error("[PlansPage] erro create-charge", e);
       setError(e instanceof Error ? e.message : "Erro ao iniciar pagamento");
     } finally {
       setLoading(null);
