@@ -25,8 +25,13 @@ async function getEfiToken(clientId, clientSecret) {
     },
     body: JSON.stringify({ grant_type: "client_credentials" }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error("EFI auth error: " + JSON.stringify(data));
+
+  const text = await res.text();
+  if (!res.ok || text.trim().startsWith("<")) {
+    throw new Error(`EFI auth falhou (${res.status}): ${text.slice(0, 300)}`);
+  }
+  const data = JSON.parse(text);
+  if (!data.access_token) throw new Error("EFI sem access_token: " + text.slice(0, 300));
   return data.access_token;
 }
 
@@ -100,8 +105,16 @@ export default async ({ req, res, log, error }) => {
         }),
       });
 
-      const chargeData = await chargeRes.json();
-      log("EFI response: " + JSON.stringify(chargeData));
+      const chargeText = await chargeRes.text();
+      log("EFI charge raw response: " + chargeText.slice(0, 500));
+
+      if (chargeText.trim().startsWith("<")) {
+        error("EFI retornou HTML: " + chargeText.slice(0, 300));
+        return res.send(JSON.stringify({ error: "EFI retornou HTML - verifique credenciais e endpoint" }), 500, CORS_HEADERS);
+      }
+
+      const chargeData = JSON.parse(chargeText);
+      log("EFI charge parsed: " + JSON.stringify(chargeData));
 
       if (!chargeRes.ok) {
         error("EFI charge error: " + JSON.stringify(chargeData));
