@@ -6,15 +6,14 @@ import type { AppUser } from "@/App";
 import {
   isBiometricAvailable,
   hasBiometricCredential,
-  getBiometricUserId,
   registerBiometric,
   authenticateWithBiometric,
   removeBiometricCredential,
 } from "@/lib/biometric";
 
-type Mode = "login" | "register" | "forgot" | "verify-email";
+type Mode = "login" | "register" | "forgot";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatCpf(v: string) {
   return v.replace(/\D/g, "").slice(0, 11)
@@ -60,7 +59,6 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [cpf, setCpf] = useState("");
-  const [verifyCode, setVerifyCode] = useState("");
   const [pendingUser, setPendingUser] = useState<AppUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -89,12 +87,14 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
     setError(null);
     try {
       const userId = await authenticateWithBiometric();
-      if (!userId) { setError("Biometria não reconhecida. Use e-mail e senha."); setLoading(false); return; }
-
-      // Restaura sessão — o Appwrite mantém a sessão no cookie/localStorage
+      if (!userId) {
+        setError("Biometria não reconhecida. Use e-mail e senha.");
+        setLoading(false);
+        return;
+      }
+      // Verifica se a sessão ainda está ativa
       const user = await account.get();
       if (user.$id !== userId) {
-        // Sessão expirou — remove biometria e pede login normal
         removeBiometricCredential();
         setBiometricReady(false);
         setError("Sessão expirada. Faça login com e-mail e senha.");
@@ -126,67 +126,46 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
     setLoading(true);
 
     try {
-      // ── VERIFICAÇÃO DE EMAIL ────────────────────────────────────────────
-      if (mode === "verify-email") {
-        if (verifyCode.trim().length !== 6) {
-          setError("Digite o código de 6 dígitos enviado ao seu e-mail.");
-          setLoading(false);
-          return;
-        }
-        try {
-          await account.updateVerification(pendingUser!.uid, verifyCode.trim());
-        } catch {
-          // Appwrite usa link, não código direto — usamos OTP via token
-          // Se falhar, tenta confirmar via token (o código é o secret do OTP)
-          setError("Código inválido ou expirado. Verifique seu e-mail.");
-          setLoading(false);
-          return;
-        }
-        // Verificação ok — prossegue para o app
-        await finishLogin(pendingUser!);
-        return;
-      }
-
-      // ── LOGIN ───────────────────────────────────────────────────────────
+      // ── LOGIN ─────────────────────────────────────────────────────────
       if (mode === "login") {
         await account.createEmailPasswordSession(email, password);
         const user = await account.get();
         const appUser: AppUser = { uid: user.$id, email: user.email };
 
-        // Oferece biometria se disponível e ainda não registrada
         if (biometricAvailable && !hasBiometricCredential()) {
           setOfferBiometric(true);
           setPendingUser(appUser);
           setLoading(false);
           return;
         }
-        await finishLogin(appUser);
+        onLogin(appUser);
         return;
       }
 
-      // ── CADASTRO ────────────────────────────────────────────────────────
+      // ── CADASTRO ──────────────────────────────────────────────────────
       if (mode === "register") {
         if (!name.trim()) { setError("Informe seu nome."); setLoading(false); return; }
         const cpfClean = cleanCpf(cpf);
         if (!validateCpf(cpfClean)) { setError("CPF inválido. Verifique os dígitos."); setLoading(false); return; }
         if (password.length < 8) { setError("A senha deve ter pelo menos 8 caracteres."); setLoading(false); return; }
 
-        // Verifica CPF único — busca no banco antes de criar
+        // 1. Cria conta e faz login para ter sessão ativa
+        const user = await account.create(ID.unique(), email, password, name.trim());
+        await account.createEmailPasswordSession(email, password);
+
+        // 2. Com sessão ativa, verifica CPF único
         const cpfCheck = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
           Query.equal("cpf", cpfClean),
         ]).catch(() => ({ documents: [] }));
 
         if (cpfCheck.documents.length > 0) {
+          await account.deleteSession("current").catch(() => {});
           setError("Este CPF já está cadastrado. Faça login ou recupere sua senha.");
           setLoading(false);
           return;
         }
 
-        // Cria conta
-        const user = await account.create(ID.unique(), email, password, name.trim());
-        await account.createEmailPasswordSession(email, password);
-
-        // Cria perfil com CPF
+        // 3. Cria perfil com CPF
         const now = new Date().toISOString();
         await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), {
           userId: user.$id,
@@ -207,18 +186,24 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
           Permission.delete(Role.user(user.$id)),
         ]);
 
-        // Envia verificação de email (OTP de 6 dígitos via Appwrite)
-        await account.createVerification(`${window.location.origin}/`);
+        // 4. Envia email de verificação (link — padrão Appwrite)
+        await account.createVerification(`${window.location.origin}/`).catch(() => {});
 
         const appUser: AppUser = { uid: user.$id, email: user.email };
-        setPendingUser(appUser);
-        switchMode("verify-email");
-        setSuccess("Código enviado para " + email + ". Verifique sua caixa de entrada.");
-        setLoading(false);
+
+        // 5. Oferece biometria se disponível
+        if (biometricAvailable && !hasBiometricCredential()) {
+          setOfferBiometric(true);
+          setPendingUser(appUser);
+          setLoading(false);
+          return;
+        }
+
+        onLogin(appUser);
         return;
       }
 
-      // ── RECUPERAR SENHA ─────────────────────────────────────────────────
+      // ── RECUPERAR SENHA ───────────────────────────────────────────────
       if (mode === "forgot") {
         await account.createRecovery(email, `${window.location.origin}/`);
         setSuccess("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
@@ -233,38 +218,24 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
     }
   }
 
-  // ── Finaliza login (após verificação ou login direto) ─────────────────────
-  async function finishLogin(appUser: AppUser) {
-    onLogin(appUser);
-  }
-
   // ── Oferta de biometria após login ────────────────────────────────────────
   async function handleAcceptBiometric() {
     setLoading(true);
-    const user = await account.get();
-    await registerBiometric(user.$id, user.name || user.email);
-    setBiometricReady(true);
+    try {
+      const user = await account.get();
+      await registerBiometric(user.$id, user.name || user.email);
+      setBiometricReady(true);
+    } catch {
+      // biometria falhou — segue sem ela
+    }
     setOfferBiometric(false);
-    await finishLogin(pendingUser!);
+    onLogin(pendingUser!);
     setLoading(false);
   }
 
-  async function handleSkipBiometric() {
+  function handleSkipBiometric() {
     setOfferBiometric(false);
-    await finishLogin(pendingUser!);
-  }
-
-  // ── Reenviar código ───────────────────────────────────────────────────────
-  async function handleResendCode() {
-    setLoading(true);
-    try {
-      await account.createVerification(`${window.location.origin}/`);
-      setSuccess("Novo código enviado!");
-    } catch {
-      setError("Erro ao reenviar. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
+    onLogin(pendingUser!);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -283,7 +254,6 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
             {mode === "login" && "Entre na sua conta"}
             {mode === "register" && "Crie sua conta grátis"}
             {mode === "forgot" && "Recuperar senha"}
-            {mode === "verify-email" && "Confirme seu e-mail"}
           </div>
         </div>
 
@@ -299,8 +269,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
               className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white py-3 text-sm font-semibold disabled:opacity-60 transition-colors">
               {loading ? "Aguarde…" : "Ativar biometria"}
             </button>
-            <button onClick={handleSkipBiometric}
-              className="w-full text-xs text-gray-400 underline">
+            <button onClick={handleSkipBiometric} className="w-full text-xs text-gray-400 underline">
               Agora não
             </button>
           </div>
@@ -310,7 +279,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
         {!offerBiometric && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
 
-            {/* Botão biometria — só aparece no login se já registrada */}
+            {/* Botão biometria — só no login se já registrada */}
             {mode === "login" && biometricReady && (
               <button onClick={handleBiometricLogin} disabled={loading}
                 className="w-full rounded-xl bg-slate-800 hover:bg-slate-900 text-white py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
@@ -343,58 +312,35 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
 
             <form onSubmit={onSubmit} className="space-y-4">
 
-              {/* ── VERIFICAÇÃO DE EMAIL ── */}
-              {mode === "verify-email" && (
-                <>
-                  <p className="text-sm text-gray-600 text-center">
-                    Enviamos um código para <strong>{email || pendingUser?.email}</strong>
-                  </p>
-                  <div>
-                    <label className="inp-label">Código de verificação</label>
-                    <input
-                      className="inp text-center text-2xl tracking-widest font-bold"
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      placeholder="000000"
-                      value={verifyCode}
-                      onChange={e => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      autoFocus
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* ── CADASTRO ── */}
+              {/* Campos de cadastro */}
               {mode === "register" && (
                 <>
                   <div>
                     <label className="inp-label">Seu nome</label>
                     <input className="inp" type="text" placeholder="Como quer ser chamada?"
-                      value={name} onChange={e => setName(e.target.value)} autoComplete="name" required />
+                      value={name} onChange={e => setName(e.target.value)}
+                      autoComplete="name" required />
                   </div>
                   <div>
                     <label className="inp-label">CPF *</label>
                     <input className="inp" type="text" placeholder="000.000.000-00"
                       value={cpf} onChange={e => setCpf(formatCpf(e.target.value))}
                       maxLength={14} required />
-                    <p className="text-xs text-gray-400 mt-1">Usado para identificar sua conta de forma única.</p>
+                    <p className="text-xs text-gray-400 mt-1">Identifica sua conta de forma única.</p>
                   </div>
                 </>
               )}
 
-              {/* ── EMAIL ── */}
-              {mode !== "verify-email" && (
-                <div>
-                  <label className="inp-label">E-mail</label>
-                  <input className="inp" type="email" placeholder="seu@email.com"
-                    value={email} onChange={e => setEmail(e.target.value)}
-                    autoComplete="email" required />
-                </div>
-              )}
+              {/* Email */}
+              <div>
+                <label className="inp-label">E-mail</label>
+                <input className="inp" type="email" placeholder="seu@email.com"
+                  value={email} onChange={e => setEmail(e.target.value)}
+                  autoComplete="email" required />
+              </div>
 
-              {/* ── SENHA ── */}
-              {(mode === "login" || mode === "register") && (
+              {/* Senha */}
+              {mode !== "forgot" && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="inp-label mb-0">Senha</label>
@@ -414,10 +360,14 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
               )}
 
               {error && (
-                <div className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</div>
+                <div className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  {error}
+                </div>
               )}
               {success && (
-                <div className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">{success}</div>
+                <div className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                  {success}
+                </div>
               )}
 
               <button type="submit" disabled={loading}
@@ -425,33 +375,31 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
                 {loading ? "Aguarde…"
                   : mode === "login" ? "Entrar"
                   : mode === "register" ? "Criar conta"
-                  : mode === "verify-email" ? "Confirmar código"
                   : "Enviar e-mail de recuperação"}
               </button>
-
-              {/* Reenviar código */}
-              {mode === "verify-email" && (
-                <button type="button" onClick={handleResendCode} disabled={loading}
-                  className="w-full text-xs text-teal-600 hover:underline disabled:opacity-50">
-                  Não recebi o código — reenviar
-                </button>
-              )}
             </form>
 
             {/* Links de troca de modo */}
             <div className="text-center text-xs text-gray-500 pt-1">
               {mode === "login" && (
                 <>Não tem conta?{" "}
-                  <button type="button" onClick={() => switchMode("register")} className="text-teal-600 font-medium hover:underline">Cadastre-se</button>
+                  <button type="button" onClick={() => switchMode("register")}
+                    className="text-teal-600 font-medium hover:underline">
+                    Cadastre-se
+                  </button>
                 </>
               )}
               {mode === "register" && (
                 <>Já tem conta?{" "}
-                  <button type="button" onClick={() => switchMode("login")} className="text-teal-600 font-medium hover:underline">Entrar</button>
+                  <button type="button" onClick={() => switchMode("login")}
+                    className="text-teal-600 font-medium hover:underline">
+                    Entrar
+                  </button>
                 </>
               )}
-              {(mode === "forgot" || mode === "verify-email") && (
-                <button type="button" onClick={() => switchMode("login")} className="text-teal-600 font-medium hover:underline">
+              {mode === "forgot" && (
+                <button type="button" onClick={() => switchMode("login")}
+                  className="text-teal-600 font-medium hover:underline">
                   ← Voltar para o login
                 </button>
               )}
