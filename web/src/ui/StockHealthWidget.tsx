@@ -7,12 +7,24 @@ import type { InventoryItem } from "@/lib/types";
 
 type Row = InventoryItem & { $id: string };
 
-export default function StockHealthWidget({ uid }: { uid: string }) {
-  const [items, setItems] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
+type Props = {
+  uid: string;
+  /** Dados de estoque já carregados — evita query duplicada quando passados pelo Dashboard */
+  items?: Row[];
+};
+
+export default function StockHealthWidget({ uid, items: itemsProp }: Props) {
+  const [items, setItems] = useState<Row[]>(itemsProp ?? []);
+  const [loading, setLoading] = useState(!itemsProp);
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Se os dados foram passados como prop, não faz query própria
+    if (itemsProp !== undefined) {
+      setItems(itemsProp);
+      setLoading(false);
+      return;
+    }
     async function load() {
       setLoading(true);
       const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.INVENTORY, [
@@ -24,7 +36,7 @@ export default function StockHealthWidget({ uid }: { uid: string }) {
       setLoading(false);
     }
     load().catch(() => setLoading(false));
-  }, [uid]);
+  }, [uid, itemsProp]);
 
   const stats = useMemo(() => {
     const now = Date.now();

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AppUser } from "@/App";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query, withRetry } from "@/lib/appwrite";
 import { ID } from "appwrite";
 import { toDate, toMillis } from "@/lib/timestamp";
 import { useSearchParams } from "react-router-dom";
@@ -184,8 +184,13 @@ export default function InventoryPage({ user }: { user: AppUser }) {
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`Excluir "${name}"?`)) return;
-    await databases.deleteDocument(DATABASE_ID, COLLECTIONS.INVENTORY, id);
-    setRows(r => r.filter(x => x.$id !== id));
+    try {
+      await withRetry(() => databases.deleteDocument(DATABASE_ID, COLLECTIONS.INVENTORY, id));
+      setRows(r => r.filter(x => x.$id !== id));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao excluir produto.";
+      setError(msg);
+    }
   }
 
   const now = Date.now();

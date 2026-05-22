@@ -7,7 +7,8 @@ import DashboardLayout from "@/ui/DashboardLayout";
 import StockHealthWidget from "@/ui/StockHealthWidget";
 import { formatMoney } from "@/lib/money";
 import type { Customer, InventoryItem, Sale, GrowthLevel } from "@/lib/types";
-import { getMarginPercent } from "@/lib/margins";
+
+type Row = InventoryItem & { $id: string };
 
 type Stats = {
   customers: number;
@@ -19,6 +20,7 @@ type Stats = {
   monthSalesCount: number;
   topCustomers: Array<Customer & { $id: string }>;
   userLevel: GrowthLevel;
+  inventoryRows: Row[];
 };
 
 export default function DashboardPage({ user }: { user: AppUser }) {
@@ -95,6 +97,7 @@ export default function DashboardPage({ user }: { user: AppUser }) {
         monthSalesCount,
         topCustomers: topCustRes.documents.map(d => ({ $id: d.$id, ...(d as unknown as Customer) })),
         userLevel,
+        inventoryRows: invRes.documents.map(d => ({ $id: d.$id, ...(d as unknown as InventoryItem) })),
       });
       setLoading(false);
     }
@@ -134,7 +137,7 @@ export default function DashboardPage({ user }: { user: AppUser }) {
             ))}
           </div>
 
-          <StockHealthWidget uid={user.uid} />
+          <StockHealthWidget uid={user.uid} items={stats?.inventoryRows} />
 
           {(stats?.topCustomers?.length ?? 0) > 0 && (
             <div className="card-brand p-5">

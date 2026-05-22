@@ -34,8 +34,28 @@ export { Query };
 export const userQuery = (userId: string) => Query.equal('userId', userId);
 
 // Helper para ordenação
-export const orderByCreatedAt = (direction: 'asc' | 'desc' = 'desc') => 
+export const orderByCreatedAt = (_direction: 'asc' | 'desc' = 'desc') =>
   Query.orderDesc('createdAt');
 
-export const orderByUpdatedAt = (direction: 'asc' | 'desc' = 'desc') => 
+export const orderByUpdatedAt = (_direction: 'asc' | 'desc' = 'desc') =>
   Query.orderDesc('updatedAt');
+
+/**
+ * Executa uma chamada ao Appwrite com retry automático em caso de erro 429.
+ * Usa backoff exponencial: 1s, 2s, 4s entre tentativas.
+ */
+export async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      lastError = err;
+      const code = (err as any)?.code ?? (err as any)?.status;
+      if (code !== 429) throw err; // só faz retry em rate limit
+      const delay = Math.pow(2, attempt) * 1000;
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastError;
+}
