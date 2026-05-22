@@ -27,10 +27,11 @@ async function getEfiToken(clientId, clientSecret) {
   });
 
   const text = await res.text();
-  if (!res.ok || text.trim().startsWith("<")) {
+  if (!res.ok || text.trim().startsWith("<") || text === "Unauthorized") {
     throw new Error(`EFI auth falhou (${res.status}): ${text.slice(0, 300)}`);
   }
-  const data = JSON.parse(text);
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error("EFI auth parse error: " + text.slice(0, 300)); }
   if (!data.access_token) throw new Error("EFI sem access_token: " + text.slice(0, 300));
   return data.access_token;
 }
@@ -54,6 +55,8 @@ export default async ({ req, res, log, error }) => {
   const FUNCTION_URL = process.env.FUNCTION_URL || "";
 
   log(`${req.method} ${req.path}`);
+  log(`EFI_CLIENT_ID presente: ${!!EFI_CLIENT_ID} | tamanho: ${EFI_CLIENT_ID?.length ?? 0}`);
+  log(`EFI_CLIENT_SECRET presente: ${!!EFI_CLIENT_SECRET} | tamanho: ${EFI_CLIENT_SECRET?.length ?? 0}`);
 
   // ── Criar link de pagamento EFI (one-step) ───────────────────────────────
   if (req.method === "POST" && req.path === "/create-charge") {
