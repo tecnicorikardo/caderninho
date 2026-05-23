@@ -540,6 +540,41 @@ export default function SettingsPage({ user }: { user: AppUser }) {
           <div><span className="font-medium">E-mail:</span> {user.email}</div>
         </div>
 
+        {/* Suporte */}
+        <div className="rounded-2xl bg-white border border-slate-200 p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-800">Suporte e Contato</h2>
+          <p className="text-xs text-gray-500">
+            Precisa de ajuda ou encontrou algum problema? Entre em contato com o suporte.
+          </p>
+          <div className="space-y-2">
+            <a
+              href="mailto:tecnicorikardo@gmail.com"
+              className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 hover:bg-teal-50 hover:border-teal-200 transition-colors"
+            >
+              <span className="text-lg">✉️</span>
+              <div>
+                <div className="text-xs font-medium text-gray-700">E-mail</div>
+                <div className="text-xs text-teal-600">tecnicorikardo@gmail.com</div>
+              </div>
+            </a>
+            <a
+              href="https://wa.me/5521970902074"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 hover:bg-green-50 hover:border-green-200 transition-colors"
+            >
+              <span className="text-lg">💬</span>
+              <div>
+                <div className="text-xs font-medium text-gray-700">WhatsApp</div>
+                <div className="text-xs text-green-600">(21) 97090-2074</div>
+              </div>
+            </a>
+          </div>
+          <p className="text-xs text-gray-400 text-center pt-1">
+            Bloquinho Digital v1.0 — Desenvolvido por Ricardo Martins
+          </p>
+        </div>
+
       </div>
     </DashboardLayout>
   );
