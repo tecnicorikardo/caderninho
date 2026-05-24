@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { account } from "@/lib/appwrite";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import AIAssistant from "@/ui/AIAssistant";
 import { useUserContext } from "@/lib/userContext";
 
 // ─── Desktop nav (top) ───────────────────────────────────────────────────────
@@ -286,6 +287,9 @@ export default function DashboardLayout({
 
       {/* ── Menu Drawer ── */}
       {menuOpen && <MenuDrawer onClose={() => setMenuOpen(false)} />}
+
+      {/* ── Assistente IA ── */}
+      <AIAssistant />
     </div>
   );
 }
