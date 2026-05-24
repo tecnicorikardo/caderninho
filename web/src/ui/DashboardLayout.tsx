@@ -131,15 +131,14 @@ export default function DashboardLayout({
   const { emailVerified } = useUserContext();
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyDismissed, setVerifyDismissed] = useState(
-    () => sessionStorage.getItem("email_verify_dismissed") === "1"
+    () => localStorage.getItem("email_verify_dismissed") === "1"
   );
 
   async function handleResendVerification() {
     setVerifyLoading(true);
     try {
       await account.createVerification(`${window.location.origin}/`);
-      sessionStorage.setItem("email_verify_dismissed", "1");
-      setVerifyDismissed(true);
+      alert("Link enviado! Verifique seu e-mail e clique no link.");
     } catch {
       // silencioso
     } finally {
@@ -147,8 +146,14 @@ export default function DashboardLayout({
     }
   }
 
+  async function handleAlreadyVerified() {
+    // Recarrega a página para buscar o status atualizado do Appwrite
+    localStorage.setItem("email_verify_dismissed", "1");
+    window.location.reload();
+  }
+
   function handleDismiss() {
-    sessionStorage.setItem("email_verify_dismissed", "1");
+    localStorage.setItem("email_verify_dismissed", "1");
     setVerifyDismissed(true);
   }
 
@@ -210,6 +215,12 @@ export default function DashboardLayout({
             <span>Confirme seu e-mail para garantir acesso à sua conta.</span>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleAlreadyVerified}
+              className="text-xs font-semibold text-green-700 hover:text-green-900 underline"
+            >
+              Já confirmei
+            </button>
             <button
               onClick={handleResendVerification}
               disabled={verifyLoading}
