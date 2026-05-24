@@ -118,9 +118,10 @@ export default function App() {
   }, [state]);
 
   const emailVerified = state.status === "signed_in" ? (state.user.emailVerified ?? true) : true;
+  const uid = state.status === "signed_in" ? state.user.uid : "";
 
   return (
-    <UserContext.Provider value={{ emailVerified }}>
+    <UserContext.Provider value={{ emailVerified, uid }}>
       <Routes>
         <Route path="/" element={rootView} />
         {state.status === "signed_in" && state.onboarded ? (

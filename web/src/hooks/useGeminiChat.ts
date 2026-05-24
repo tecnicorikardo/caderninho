@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { geminiModel } from "@/lib/gemini";
 
 export type ChatMessage = {
@@ -10,6 +10,16 @@ export function useGeminiChat(systemPrompt: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const chatRef = useRef<any>(null);
+  const promptRef = useRef(systemPrompt);
+
+  // Atualiza o prompt ref quando mudar (contexto carregado)
+  // e reseta o chat para usar o novo prompt
+  useEffect(() => {
+    if (promptRef.current !== systemPrompt) {
+      promptRef.current = systemPrompt;
+      chatRef.current = null; // força novo chat com contexto atualizado
+    }
+  }, [systemPrompt]);
 
   async function sendMessage(text: string) {
     setMessages(prev => [...prev, { role: "user", text }]);

@@ -129,7 +129,7 @@ export default function DashboardLayout({
 }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { emailVerified } = useUserContext();
+  const { emailVerified, uid } = useUserContext();
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyDismissed, setVerifyDismissed] = useState(
     () => localStorage.getItem("email_verify_dismissed") === "1"
@@ -289,7 +289,6 @@ export default function DashboardLayout({
       {menuOpen && <MenuDrawer onClose={() => setMenuOpen(false)} />}
 
       {/* ── Assistente IA ── */}
-      <AIAssistant />
-    </div>
+      {uid && <AIAssistant uid={uid} />}    </div>
   );
 }
