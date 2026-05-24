@@ -197,7 +197,27 @@ export default function AIAssistant({ uid }: Props) {
           </div>
 
           {/* Input */}
-          <div className="p-3 border-t border-slate-200 bg-white flex-shrink-0">
+          <div className="p-3 border-t border-slate-200 bg-white flex-shrink-0 space-y-2">
+
+            {/* Atalhos sempre visíveis */}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "Minhas comissoes",
+                "Quem tem fiado?",
+                "Ver relatorio do mes",
+                "Produto vencendo?",
+              ].map(q => (
+                <button
+                  key={q}
+                  onClick={() => sendMessage(q)}
+                  disabled={loading || isLoadingContext}
+                  className="text-xs bg-teal-50 border border-teal-200 text-teal-700 rounded-full px-2.5 py-1 hover:bg-teal-100 disabled:opacity-40 transition-colors"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+
             <div className="flex gap-2">
               <input
                 ref={inputRef}
