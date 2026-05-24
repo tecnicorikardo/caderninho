@@ -75,7 +75,7 @@ export default function App() {
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <div className="w-12 h-12 rounded-2xl bg-teal-600 flex items-center justify-center text-white font-bold text-xl mx-auto mb-3">B</div>
+            <img src="/icon.png" alt="Bloquinho Digital" className="w-20 h-20 mx-auto mb-3 rounded-2xl drop-shadow-lg object-contain animate-pulse" />
             <div className="text-sm text-gray-500">Carregando…</div>
           </div>
         </div>

@@ -248,8 +248,12 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
 
         {/* Logo */}
         <div className="text-center mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-teal-600 flex items-center justify-center text-white font-bold text-2xl mx-auto shadow-lg">B</div>
-          <div className="text-xs font-semibold text-teal-600 uppercase tracking-widest mt-2">Bloquinho Digital</div>
+          <img
+            src="/icon.png"
+            alt="Bloquinho Digital"
+            className="w-28 h-28 mx-auto mb-3 drop-shadow-xl rounded-2xl object-contain"
+          />
+          <div className="text-sm font-bold text-teal-700 uppercase tracking-widest mt-1">Bloquinho Digital</div>
           <div className="text-gray-500 text-sm mt-1">
             {mode === "login" && "Entre na sua conta"}
             {mode === "register" && "Crie sua conta grátis"}

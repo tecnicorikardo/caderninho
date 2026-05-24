@@ -167,7 +167,9 @@ export default function DashboardLayout({
       <header className="header-gradient shadow-lg sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-display font-bold text-base shadow-inner">B</div>
+            <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-inner">
+              <img src="/icon.png" alt="B" className="w-full h-full object-cover" />
+            </div>
             <div>
               <div className="text-[10px] font-semibold text-teal-200 uppercase tracking-[0.15em] leading-none">Bloquinho Digital</div>
               <h1 className="text-lg font-display font-bold text-white leading-tight tracking-tight">{title}</h1>
