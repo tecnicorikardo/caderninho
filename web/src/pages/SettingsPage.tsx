@@ -16,6 +16,17 @@ const DEFAULT_BRANDS: BrandMargin[] = [
   { brand: "Casa & Estilo", marginPercent: 15 },
 ];
 
+const WIPE_PAGE_SIZE = 10;
+const WIPE_DELETE_DELAY_MS = 650;
+const WIPE_PAGE_DELAY_MS = 1200;
+const WIPE_RETRY_DELAYS_MS = [2500, 5000, 10000, 20000];
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+function getAppwriteStatus(error: unknown) {
+  return Number((error as any)?.code ?? (error as any)?.status ?? 0);
+}
+
 export default function SettingsPage({ user }: { user: AppUser }) {
   const [brandMargins, setBrandMargins] = useState<BrandMargin[]>(DEFAULT_BRANDS);
   const [saving, setSaving] = useState(false);
@@ -206,7 +217,22 @@ export default function SettingsPage({ user }: { user: AppUser }) {
     setWiping(true);
     setWipeProgress(null);
     try {
-      const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+      const deleteDocumentWithRetry = async (collectionId: string, documentId: string, label: string, current: number, total: number) => {
+        for (let attempt = 0; attempt <= WIPE_RETRY_DELAYS_MS.length; attempt++) {
+          try {
+            await databases.deleteDocument(DATABASE_ID, collectionId, documentId);
+            return;
+          } catch (err) {
+            if (getAppwriteStatus(err) !== 429 || attempt === WIPE_RETRY_DELAYS_MS.length) {
+              throw err;
+            }
+
+            const waitMs = WIPE_RETRY_DELAYS_MS[attempt];
+            setWipeProgress({ label: `${label} aguardando limite...`, current, total });
+            await sleep(waitMs);
+          }
+        }
+      };
 
       const deleteAll = async (collectionId: string, label: string) => {
         // Primeiro conta quantos existem
@@ -222,26 +248,18 @@ export default function SettingsPage({ user }: { user: AppUser }) {
 
         while (true) {
           const res = await databases.listDocuments(DATABASE_ID, collectionId, [
-            Query.equal("userId", user.uid), Query.limit(25),
+            Query.equal("userId", user.uid), Query.limit(WIPE_PAGE_SIZE),
           ]);
           if (res.documents.length === 0) break;
 
           for (const doc of res.documents) {
-            try {
-              await databases.deleteDocument(DATABASE_ID, collectionId, doc.$id);
-              deleted++;
-              setWipeProgress({ label, current: deleted, total });
-              await sleep(100);
-            } catch (err: any) {
-              if (Number(err?.code) === 429) {
-                await sleep(2000);
-                await databases.deleteDocument(DATABASE_ID, collectionId, doc.$id);
-                deleted++;
-                setWipeProgress({ label, current: deleted, total });
-              }
-            }
+            await deleteDocumentWithRetry(collectionId, doc.$id, label, deleted, total);
+            deleted++;
+            setWipeProgress({ label, current: deleted, total });
+            await sleep(WIPE_DELETE_DELAY_MS);
           }
-          if (res.documents.length < 25) break;
+          if (res.documents.length < WIPE_PAGE_SIZE) break;
+          await sleep(WIPE_PAGE_DELAY_MS);
         }
       };
 
