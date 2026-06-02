@@ -10,8 +10,9 @@ import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
 import DashboardLayout from "@/ui/DashboardLayout";
 import { formatMoney, toCents } from "@/lib/money";
 import { getConfiguredMargin, calculatePriceFromConfigured } from "@/lib/margins";
+import { calculateBrandCommissionCents, calculateItemEarnings } from "@/lib/profit";
 import { toDate } from "@/lib/timestamp";
-import type { Sale, SaleItem, BrandMargin, Customer } from "@/lib/types";
+import type { Sale, SaleItem, BrandMargin } from "@/lib/types";
 
 const DEFAULT_BRANDS: BrandMargin[] = [
   { brand: "Natura", marginPercent: 30 },
@@ -23,7 +24,9 @@ type BrandSummary = {
   brand: string;
   revenue: number;
   cost: number;
+  grossProfit: number;
   commission: number;
+  profit: number;
   salesCount: number;
   marginPct: number;
 };
@@ -35,7 +38,9 @@ type SaleWithCommission = {
   items: SaleItem[];
   totalCents: number;
   costCents: number;
-  commissionCents: number;
+  grossProfitCents: number;
+  brandCommissionCents: number;
+  profitCents: number;
   paymentType: string;
 };
 
@@ -142,6 +147,8 @@ export default function CommissionPage({ user }: { user: AppUser }) {
 
         let saleCost = 0;
         let saleRevenue = 0;
+        let saleGrossProfit = 0;
+        let saleBrandCommission = 0;
 
         for (const item of items) {
           const brand =
@@ -156,7 +163,9 @@ export default function CommissionPage({ user }: { user: AppUser }) {
               brand,
               revenue: 0,
               cost: 0,
+              grossProfit: 0,
               commission: 0,
+              profit: 0,
               salesCount: 0,
               marginPct: getConfiguredMargin(brand, margins),
             });
@@ -164,13 +173,19 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           const s = map.get(brand)!;
           const rev = (item.unitPriceCents ?? 0) * (item.quantity ?? 0);
           const cost = (item.unitCostCents ?? 0) * (item.quantity ?? 0);
+          const grossProfit = rev - cost;
+          const brandCommission = calculateBrandCommissionCents(rev, s.marginPct);
           s.revenue += rev;
           s.cost += cost;
-          s.commission += rev - cost;
+          s.grossProfit += grossProfit;
+          s.commission += brandCommission;
+          s.profit += grossProfit + brandCommission;
           s.salesCount++;
 
           saleRevenue += rev;
           saleCost += cost;
+          saleGrossProfit += grossProfit;
+          saleBrandCommission += brandCommission;
         }
 
         salesWithComm.push({
@@ -180,7 +195,9 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           items,
           totalCents: sale.totalCents ?? saleRevenue,
           costCents: saleCost,
-          commissionCents: saleRevenue - saleCost,
+          grossProfitCents: saleGrossProfit,
+          brandCommissionCents: saleBrandCommission,
+          profitCents: saleGrossProfit + saleBrandCommission,
           paymentType: sale.paymentType || "cash",
         });
       }
@@ -198,13 +215,15 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           brand: "Geral",
           revenue: totalRev,
           cost: totalCost,
-          commission: totalRev - totalCost,
+          grossProfit: totalRev - totalCost,
+          commission: calculateBrandCommissionCents(totalRev, getConfiguredMargin("Natura", margins)),
+          profit: totalRev - totalCost + calculateBrandCommissionCents(totalRev, getConfiguredMargin("Natura", margins)),
           salesCount: salesRes.total,
           marginPct: getConfiguredMargin("Natura", margins),
         });
       }
 
-      setSummaries(Array.from(map.values()).sort((a, b) => b.commission - a.commission));
+      setSummaries(Array.from(map.values()).sort((a, b) => b.profit - a.profit));
       setSalesList(salesWithComm);
       setLoading(false);
     }
@@ -217,16 +236,17 @@ export default function CommissionPage({ user }: { user: AppUser }) {
   const suggestedPrice = calcCostCents > 0
     ? calculatePriceFromConfigured(calcCostCents, activeBrand, brandMargins)
     : 0;
+  const calcCommissionPct = getConfiguredMargin(activeBrand, brandMargins);
   const calcCommission = calcMode === "fromCost"
+    ? calculateBrandCommissionCents(suggestedPrice, calcCommissionPct)
+    : calculateBrandCommissionCents(calcSellingCents, calcCommissionPct);
+  const calcGrossProfit = calcMode === "fromCost"
     ? suggestedPrice - calcCostCents
     : calcSellingCents - calcCostCents;
-  const calcMargin = calcMode === "fromCost"
-    ? getConfiguredMargin(activeBrand, brandMargins)
-    : calcSellingCents > 0
-      ? Math.round(((calcSellingCents - calcCostCents) / calcSellingCents) * 100)
-      : 0;
+  const calcProfit = calcGrossProfit + calcCommission;
 
   const totalCommission = summaries.reduce((s, b) => s + b.commission, 0);
+  const totalProfit = summaries.reduce((s, b) => s + b.profit, 0);
   const totalRevenue = summaries.reduce((s, b) => s + b.revenue, 0);
   const periodLabel = period === "month" ? "Este mes"
     : period === "last30" ? "Ultimos 30 dias"
@@ -240,15 +260,16 @@ export default function CommissionPage({ user }: { user: AppUser }) {
         {/* Header com total */}
         <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 flex items-center justify-between">
           <div>
-            <div className="text-xs font-medium text-teal-600">Comissao total</div>
-            <div className="text-3xl font-bold text-teal-700">{formatMoney(totalCommission)}</div>
+            <div className="text-xs font-medium text-teal-600">Lucro total</div>
+            <div className="text-3xl font-bold text-teal-700">{formatMoney(totalProfit)}</div>
             <div className="text-xs text-teal-500 mt-0.5">{periodLabel}</div>
+            <div className="text-xs text-teal-600 mt-1">Inclui {formatMoney(totalCommission)} de comissao</div>
           </div>
           <div className="text-right">
             <div className="text-xs text-teal-600">Faturamento</div>
             <div className="text-xl font-semibold text-teal-700">{formatMoney(totalRevenue)}</div>
             <div className="text-xs text-teal-500 mt-0.5">
-              {totalRevenue > 0 ? ((totalCommission / totalRevenue) * 100).toFixed(1) : "0"}% de margem
+              {totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : "0"}% de lucro
             </div>
           </div>
         </div>
@@ -304,7 +325,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           : <div className="divide-y divide-slate-100">
             {salesList.map(sale => {
               const isExpanded = expandedSale === sale.$id;
-              const marginPct = sale.totalCents > 0 ? ((sale.commissionCents / sale.totalCents) * 100).toFixed(1) : "0";
+              const marginPct = sale.totalCents > 0 ? ((sale.profitCents / sale.totalCents) * 100).toFixed(1) : "0";
               return (
                 <div key={sale.$id}>
                   <button onClick={() => setExpandedSale(isExpanded ? null : sale.$id)}
@@ -318,7 +339,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                       <div className="text-xs text-gray-500 mt-0.5">{sale.date} &bull; {sale.items.length} item{sale.items.length !== 1 ? "s" : ""}</div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-base font-bold text-green-700">+{formatMoney(sale.commissionCents)}</div>
+                      <div className="text-base font-bold text-green-700">+{formatMoney(sale.profitCents)}</div>
                       <div className="text-xs text-gray-400">{marginPct}% de {formatMoney(sale.totalCents)}</div>
                     </div>
                     <div className={`text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}>▾</div>
@@ -330,6 +351,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                         {sale.items.map((item, i) => {
                           const itemRev = (item.unitPriceCents ?? 0) * (item.quantity ?? 0);
                           const itemCost = (item.unitCostCents ?? 0) * (item.quantity ?? 0);
+                          const itemEarnings = calculateItemEarnings(item, brandMargins);
                           return (
                             <div key={i} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-slate-100">
                               <div className="flex-1 min-w-0">
@@ -339,15 +361,17 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                               <div className="text-right flex-shrink-0 space-y-0.5">
                                 <div className="text-sm font-semibold text-gray-800">{formatMoney(itemRev)}</div>
                                 <div className="text-xs text-gray-400">custo {formatMoney(itemCost)}</div>
-                                <div className="text-xs font-semibold text-green-600">+{formatMoney(itemRev - itemCost)}</div>
+                                <div className="text-xs text-teal-600">comissao {formatMoney(itemEarnings.commissionCents)}</div>
+                                <div className="text-xs font-semibold text-green-600">lucro {formatMoney(itemEarnings.profitCents)}</div>
                               </div>
                             </div>
                           );
                         })}
-                        <div className="mt-3 rounded-xl bg-white border border-slate-200 px-4 py-3 grid grid-cols-3 gap-3 text-center">
+                        <div className="mt-3 rounded-xl bg-white border border-slate-200 px-4 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                           <div><div className="text-xs text-gray-500">Total venda</div><div className="text-sm font-bold text-gray-800">{formatMoney(sale.totalCents)}</div></div>
                           <div><div className="text-xs text-gray-500">Custo</div><div className="text-sm font-bold text-gray-600">{formatMoney(sale.costCents)}</div></div>
-                          <div><div className="text-xs text-green-600">Comissao</div><div className="text-sm font-bold text-green-700">{formatMoney(sale.commissionCents)}</div></div>
+                          <div><div className="text-xs text-teal-600">Comissao</div><div className="text-sm font-bold text-teal-700">{formatMoney(sale.brandCommissionCents)}</div></div>
+                          <div><div className="text-xs text-green-600">Lucro total</div><div className="text-sm font-bold text-green-700">{formatMoney(sale.profitCents)}</div></div>
                         </div>
                       </div>
                     </div>
@@ -358,8 +382,8 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           </div>}
           {salesList.length > 0 && (
             <div className="px-5 py-4 bg-teal-50 border-t border-teal-100 flex justify-between items-center">
-              <div className="text-sm font-semibold text-teal-800">Total de comissoes</div>
-              <div className="text-xl font-bold text-teal-700">{formatMoney(totalCommission)}</div>
+              <div className="text-sm font-semibold text-teal-800">Lucro total</div>
+              <div className="text-xl font-bold text-teal-700">{formatMoney(totalProfit)}</div>
             </div>
           )}
         </div>}
@@ -386,7 +410,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-bold text-green-700">{formatMoney(b.commission)}</div>
+                      <div className="text-lg font-bold text-green-700">{formatMoney(b.profit)}</div>
                       <div className="text-xs text-gray-500">de {formatMoney(b.revenue)}</div>
                     </div>
                   </div>
@@ -395,6 +419,8 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                   </div>
                   <div className="flex justify-between text-xs text-gray-400 mt-1">
                     <span>Custo: {formatMoney(b.cost)}</span>
+                    <span>Comissao: {formatMoney(b.commission)}</span>
+                    <span>Lucro bruto: {formatMoney(b.grossProfit)}</span>
                     <span>{pct.toFixed(0)}% do faturamento</span>
                   </div>
                 </div>
@@ -403,8 +429,8 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           </div>}
           {summaries.length > 0 && (
             <div className="px-5 py-4 bg-teal-50 border-t border-teal-100 flex justify-between items-center">
-              <div className="text-sm font-semibold text-teal-800">Total de comissoes</div>
-              <div className="text-xl font-bold text-teal-700">{formatMoney(totalCommission)}</div>
+              <div className="text-sm font-semibold text-teal-800">Lucro total</div>
+              <div className="text-xl font-bold text-teal-700">{formatMoney(totalProfit)}</div>
             </div>
           )}
         </div>}
@@ -439,9 +465,9 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                   <div className="text-xs text-gray-400 mt-0.5">{activeBrand}</div>
                 </div>
                 <div className="rounded-xl bg-green-50 border border-green-100 p-4 text-center">
-                  <div className="text-xs text-green-600 mb-1">Sua comissao</div>
-                  <div className="text-xl font-bold text-green-700">{formatMoney(calcCommission > 0 ? calcCommission : 0)}</div>
-                  <div className="text-xs text-green-500 mt-0.5">{calcMargin}% de margem</div>
+                  <div className="text-xs text-green-600 mb-1">Lucro total</div>
+                  <div className="text-xl font-bold text-green-700">{formatMoney(calcProfit > 0 ? calcProfit : 0)}</div>
+                  <div className="text-xs text-green-500 mt-0.5">{calcCommissionPct}% de comissao</div>
                 </div>
                 <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-center">
                   <div className="text-xs text-blue-600 mb-1">Custo</div>
@@ -450,7 +476,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                 </div>
               </div>
               <div className="mt-3 rounded-xl bg-teal-50 border border-teal-100 p-3 text-xs text-teal-700">
-                Vendendo <strong>{activeBrand}</strong> com {calcMargin}% de margem: para cada <strong>{formatMoney(calcCostCents)}</strong> investido, voce recebe <strong>{formatMoney(calcCommission > 0 ? calcCommission : 0)}</strong> de comissao.
+                Vendendo <strong>{activeBrand}</strong> com {calcCommissionPct}% de comissao: lucro bruto de <strong>{formatMoney(calcGrossProfit > 0 ? calcGrossProfit : 0)}</strong>, mais <strong>{formatMoney(calcCommission > 0 ? calcCommission : 0)}</strong> de comissao.
               </div>
             </>
           )}
