@@ -205,7 +205,7 @@ export default async ({ req, res, log, error }) => {
       const qrCodeImage = qrData.imagemQrcode || null;
       const qrCodeText  = qrData.qrcode || pixCopiaECola;
 
-      log(`Pix criado: txid=${txid} userId=${userId} plano=${plan}`);
+      log(`Pix criado: txid=${txid} userId=${userId} meses=${parsedMonths}`);
 
       return res.send(JSON.stringify({
         txid,
