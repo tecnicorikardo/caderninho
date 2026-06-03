@@ -173,19 +173,18 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           const s = map.get(brand)!;
           const rev = (item.unitPriceCents ?? 0) * (item.quantity ?? 0);
           const cost = (item.unitCostCents ?? 0) * (item.quantity ?? 0);
-          const grossProfit = rev - cost;
-          const brandCommission = calculateBrandCommissionCents(rev, s.marginPct);
-          s.revenue += rev;
-          s.cost += cost;
+          const grossProfit = rev - cost; // lucro real = comissao real
+          s.revenue    += rev;
+          s.cost       += cost;
           s.grossProfit += grossProfit;
-          s.commission += brandCommission;
-          s.profit += grossProfit + brandCommission;
+          s.commission  += grossProfit;   // comissao = lucro bruto
+          s.profit      += grossProfit;
           s.salesCount++;
 
-          saleRevenue += rev;
-          saleCost += cost;
-          saleGrossProfit += grossProfit;
-          saleBrandCommission += brandCommission;
+          saleRevenue      += rev;
+          saleCost         += cost;
+          saleGrossProfit  += grossProfit;
+          saleBrandCommission += grossProfit;
         }
 
         salesWithComm.push({
@@ -196,8 +195,8 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           totalCents: sale.totalCents ?? saleRevenue,
           costCents: saleCost,
           grossProfitCents: saleGrossProfit,
-          brandCommissionCents: saleBrandCommission,
-          profitCents: saleGrossProfit + saleBrandCommission,
+          brandCommissionCents: saleGrossProfit,  // comissao = lucro bruto
+          profitCents: saleGrossProfit,
           paymentType: sale.paymentType || "cash",
         });
       }
@@ -211,13 +210,14 @@ export default function CommissionPage({ user }: { user: AppUser }) {
           totalCost += items.reduce((s: number, i: any) =>
             s + (i.unitCostCents ?? 0) * (i.quantity ?? 0), 0);
         }
+        const grossProfit = totalRev - totalCost;
         map.set("Geral", {
           brand: "Geral",
           revenue: totalRev,
           cost: totalCost,
-          grossProfit: totalRev - totalCost,
-          commission: calculateBrandCommissionCents(totalRev, getConfiguredMargin("Natura", margins)),
-          profit: totalRev - totalCost + calculateBrandCommissionCents(totalRev, getConfiguredMargin("Natura", margins)),
+          grossProfit,
+          commission: grossProfit,
+          profit: grossProfit,
           salesCount: salesRes.total,
           marginPct: getConfiguredMargin("Natura", margins),
         });
