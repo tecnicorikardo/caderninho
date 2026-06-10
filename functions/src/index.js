@@ -13,6 +13,14 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
+const MP_PAYMENT_SECRETS = [
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "EFI_CLIENT_ID",
+  "EFI_CLIENT_SECRET",
+  "EFI_CERT_BASE64",
+  "EFI_PIX_KEY",
+];
+
 let supabaseAdmin = null;
 
 function getSupabaseAdmin() {
@@ -324,7 +332,12 @@ exports.hello = onRequest((_req, res) => {
 });
 
 exports.mpPayment = onRequest(
-  { region: "southamerica-east1", timeoutSeconds: 60, memory: "256MiB" },
+  {
+    region: "southamerica-east1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    secrets: MP_PAYMENT_SECRETS,
+  },
   async (req, res) => {
     if (req.method === "OPTIONS") {
       Object.entries(CORS_HEADERS).forEach(([key, value]) => res.set(key, value));
