@@ -1,9 +1,9 @@
 /**
  * aiContext.ts
- * Busca um resumo dos dados do usuario no Appwrite
+ * Busca um resumo dos dados do usuario no Supabase
  * e monta o contexto para a Bia (assistente IA).
  */
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import { formatMoney } from "@/lib/money";
 import { toDate } from "@/lib/timestamp";
 import type { Receivable, Sale, InventoryItem, Customer } from "@/lib/types";

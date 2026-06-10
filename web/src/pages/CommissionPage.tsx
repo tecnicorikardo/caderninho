@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pagina de Comissao por Marca e por Venda
  * Mostra quanto a revendedora ganhou de comissao por marca no periodo
  * e uma lista detalhada de comissao por venda individual.
@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import type { AppUser } from "@/App";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import DashboardLayout from "@/ui/DashboardLayout";
 import { formatMoney, toCents } from "@/lib/money";
 import { getConfiguredMargin, calculatePriceFromConfigured } from "@/lib/margins";
@@ -50,7 +50,7 @@ type Tab = "brand" | "sales" | "calc";
 const MONTH_NAMES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
 const PAYMENT_LABELS: Record<string, string> = {
-  cash: "Dinheiro", pix: "PIX", card: "Cartão",
+  cash: "Dinheiro", pix: "PIX", card: "Cart�o",
   fiado: "Fiado", installments: "Parcelado",
 };
 
@@ -189,7 +189,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
 
         salesWithComm.push({
           $id: d.$id,
-          date: sale.createdAt ? toDate(sale.createdAt).toLocaleDateString("pt-BR") : "—",
+          date: sale.createdAt ? toDate(sale.createdAt).toLocaleDateString("pt-BR") : "�",
           customerName: custById.get(sale.customerId) || "Cliente",
           items,
           totalCents: sale.totalCents ?? saleRevenue,
@@ -303,7 +303,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
 
         {/* Abas */}
         <div className="flex gap-1 bg-slate-100 rounded-2xl p-1">
-          {([{ key: "sales", label: "💰 Por Venda" }, { key: "brand", label: "🏷️ Por Marca" }, { key: "calc", label: "🧮 Calculadora" }] as { key: Tab; label: string }[]).map(t => (
+          {([{ key: "sales", label: "?? Por Venda" }, { key: "brand", label: "??? Por Marca" }, { key: "calc", label: "?? Calculadora" }] as { key: Tab; label: string }[]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${tab === t.key ? "bg-white text-teal-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
               {t.label}
@@ -330,7 +330,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                 <div key={sale.$id}>
                   <button onClick={() => setExpandedSale(isExpanded ? null : sale.$id)}
                     className="w-full px-5 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left">
-                    <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">💰</div>
+                    <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm flex-shrink-0">??</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900">{sale.customerName}</span>
@@ -342,7 +342,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
                       <div className="text-base font-bold text-green-700">+{formatMoney(sale.profitCents)}</div>
                       <div className="text-xs text-gray-400">{marginPct}% de {formatMoney(sale.totalCents)}</div>
                     </div>
-                    <div className={`text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}>▾</div>
+                    <div className={`text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}>?</div>
                   </button>
                   {isExpanded && (
                     <div className="px-5 pb-4 bg-slate-50 border-t border-slate-100">
@@ -451,7 +451,7 @@ export default function CommissionPage({ user }: { user: AppUser }) {
               <input type="number" step="0.01" min="0" placeholder="Ex: 25,00" className="inp" value={calcCost} onChange={e => setCalcCost(e.target.value)} />
             </div>
             <div className="sm:col-span-2">
-              <label className="inp-label">Preco de venda (R$) <span className="text-gray-400 font-normal ml-1">— opcional</span></label>
+              <label className="inp-label">Preco de venda (R$) <span className="text-gray-400 font-normal ml-1">� opcional</span></label>
               <input type="number" step="0.01" min="0" placeholder="Deixe vazio para calcular automaticamente" className="inp" value={calcSelling}
                 onChange={e => { setCalcSelling(e.target.value); setCalcMode(e.target.value ? "fromSelling" : "fromCost"); }} />
             </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import type { AppUser } from "@/App";
 
 export default function PaymentSuccessPage({ user }: { user: AppUser }) {

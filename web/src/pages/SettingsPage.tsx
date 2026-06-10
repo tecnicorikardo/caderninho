@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AppUser } from "@/App";
-import { databases, DATABASE_ID, COLLECTIONS, Query, account } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query, account } from "@/lib/supabase";
 import { nowISO } from "@/lib/timestamp";
 import { applyTheme, PRESET_COLORS, DEFAULT_COLOR } from "@/lib/theme";
 import { updateUserProfile } from "@/lib/profile";
@@ -23,7 +23,7 @@ const WIPE_RETRY_DELAYS_MS = [2500, 5000, 10000, 20000];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-function getAppwriteStatus(error: unknown) {
+function getServiceStatus(error: unknown) {
   return Number((error as any)?.code ?? (error as any)?.status ?? 0);
 }
 
@@ -61,7 +61,7 @@ export default function SettingsPage({ user }: { user: AppUser }) {
   const [wipeProgress, setWipeProgress] = useState<{ label: string; current: number; total: number } | null>(null);
   const [importProgress, setImportProgress] = useState<{ label: string; current: number; total: number } | null>(null);
 
-  // ID do documento de perfil no Appwrite
+  // ID do documento de perfil no Supabase
   const [profileDocId, setProfileDocId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,7 +73,7 @@ export default function SettingsPage({ user }: { user: AppUser }) {
       if (res.documents.length > 0) {
         const doc = res.documents[0];
         setProfileDocId(doc.$id);
-        // brandMargins vem como string JSON do Appwrite
+        // brandMargins vem como string JSON do Supabase
         try {
           const raw = doc.brandMargins;
           let parsed: unknown = raw;
@@ -223,7 +223,7 @@ export default function SettingsPage({ user }: { user: AppUser }) {
             await databases.deleteDocument(DATABASE_ID, collectionId, documentId);
             return;
           } catch (err) {
-            if (getAppwriteStatus(err) !== 429 || attempt === WIPE_RETRY_DELAYS_MS.length) {
+            if (getServiceStatus(err) !== 429 || attempt === WIPE_RETRY_DELAYS_MS.length) {
               throw err;
             }
 
@@ -239,7 +239,7 @@ export default function SettingsPage({ user }: { user: AppUser }) {
         const countRes = await databases.listDocuments(DATABASE_ID, collectionId, [
           Query.equal("userId", user.uid), Query.limit(1),
         ]);
-        // Appwrite retorna o total no campo total
+        // A camada de dados retorna o total no campo total
         let deleted = 0;
         const total = (countRes as any).total ?? 0;
         if (total === 0) return;

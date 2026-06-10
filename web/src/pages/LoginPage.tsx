@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { account } from "@/lib/appwrite";
-import { ID, OAuthProvider, Permission, Role } from "appwrite";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { account } from "@/lib/supabase";
+import { ID, OAuthProvider, Permission, Role } from "@/lib/supabase";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import type { AppUser } from "@/App";
 import {
   isBiometricAvailable,
@@ -45,6 +45,7 @@ function errorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   if (msg.includes("Invalid credentials") || msg.includes("user_invalid_credentials")) return "E-mail ou senha incorretos.";
   if (msg.includes("email-already-in-use") || msg.includes("user_already_exists")) return "Este e-mail já está cadastrado.";
+  if (msg.includes("duplicate key") || msg.includes("users_profiles_cpf_key")) return "Este CPF já está cadastrado. Faça login ou recupere sua senha.";
   if (msg.includes("weak-password") || msg.includes("password_recently_used")) return "A senha deve ter pelo menos 8 caracteres.";
   if (msg.includes("Invalid email") || msg.includes("user_invalid_email")) return "E-mail inválido.";
   if (msg.includes("too-many-requests") || msg.includes("rate_limit")) return "Muitas tentativas. Aguarde alguns minutos.";
@@ -165,9 +166,9 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
           return;
         }
 
-        // 3. Cria perfil com CPF
+        // 3. Cria ou atualiza perfil com CPF
         const now = new Date().toISOString();
-        await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), {
+        const profileData = {
           userId: user.$id,
           cpf: cpfClean,
           createdAt: now,
@@ -180,13 +181,26 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
           ]),
           planStatus: "free",
           themeColor: null,
-        }, [
-          Permission.read(Role.user(user.$id)),
-          Permission.update(Role.user(user.$id)),
-          Permission.delete(Role.user(user.$id)),
-        ]);
+        };
 
-        // 4. Envia email de verificação (link — padrão Appwrite)
+        const existingProfile = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
+          Query.equal("userId", user.$id),
+          Query.limit(1),
+        ]).catch(() => ({ documents: [] }));
+
+        if (existingProfile.documents.length > 0) {
+          await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, existingProfile.documents[0].$id, {
+            ...profileData,
+            createdAt: existingProfile.documents[0].createdAt ?? now,
+          });
+        } else {
+          await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), profileData, [
+            Permission.read(Role.user(user.$id)),
+            Permission.update(Role.user(user.$id)),
+            Permission.delete(Role.user(user.$id)),
+          ]);
+        }
+        // 4. Envia email de verificacao
         await account.createVerification(`${window.location.origin}/`).catch(() => {});
 
         const appUser: AppUser = { uid: user.$id, email: user.email };

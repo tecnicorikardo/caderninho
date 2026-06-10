@@ -1,4 +1,4 @@
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import { toMillis, nowISO } from "@/lib/timestamp";
 import type { InventoryItem, SaleItem } from "@/lib/types";
 

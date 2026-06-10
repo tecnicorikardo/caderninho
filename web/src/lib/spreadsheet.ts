@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
-import { ID, Permission, Role } from "appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
+import { ID, Permission, Role } from "@/lib/supabase";
 import { toCents } from "@/lib/money";
 import { toDate, nowISO } from "@/lib/timestamp";
 import type { Customer, InventoryItem } from "@/lib/types";

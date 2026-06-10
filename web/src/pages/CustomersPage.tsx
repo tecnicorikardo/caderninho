@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AppUser } from "@/App";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
+import { ID } from "@/lib/supabase";
 import DashboardLayout from "@/ui/DashboardLayout";
 import type { Customer } from "@/lib/types";
 import { buildCustomerHistoryText } from "@/lib/customerHistory";

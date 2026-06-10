@@ -1,5 +1,5 @@
 /**
- * Helpers para lidar com timestamps compatíveis com Appwrite (ISO string)
+ * Helpers para lidar com timestamps compatíveis com Supabase (ISO string)
  * e legado Firebase (objeto Timestamp).
  */
 import type { AppTimestamp } from "./types";

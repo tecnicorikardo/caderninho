@@ -1,4 +1,4 @@
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import { toDate } from "@/lib/timestamp";
 import { formatMoney } from "@/lib/money";
 import type { Customer, Receivable, Sale } from "@/lib/types";

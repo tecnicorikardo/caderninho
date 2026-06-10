@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { account } from "@/lib/appwrite";
+import { account } from "@/lib/supabase";
 import { ensureUserProfile } from "@/lib/profile";
 import { applyTheme } from "@/lib/theme";
 import { getEffectivePlan, trialDaysLeft } from "@/lib/plan";
@@ -89,7 +89,7 @@ export default function App() {
             try {
               const profile = await ensureUserProfile(user.uid);
               if (profile.themeColor) applyTheme(profile.themeColor as string);
-              // Busca emailVerification atualizado do Appwrite
+              // Busca emailVerification atualizado do Supabase
               const freshUser = await account.get().catch(() => null);
               setState({
                 status: "signed_in",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import { toMillis } from "@/lib/timestamp";
 import { useNavigate } from "react-router-dom";
 import { formatMoney } from "@/lib/money";

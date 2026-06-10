@@ -1,5 +1,5 @@
-import { databases, account, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
-import { ID, Permission, Role } from "appwrite";
+import { databases, account, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
+import { ID, Permission, Role } from "@/lib/supabase";
 import type { UserProfile } from "@/lib/types";
 
 export async function ensureUserProfile(uid: string): Promise<UserProfile> {
@@ -11,9 +11,9 @@ export async function ensureUserProfile(uid: string): Promise<UserProfile> {
 
     if (res.documents.length > 0) {
       const doc = res.documents[0];
-      // Prioridade: Appwrite → localStorage → null
+      // Prioridade: Supabase -> localStorage -> null
       // O localStorage garante que o onboarding não apareça de novo mesmo que
-      // o campo onboardedAt não exista ou não seja salvo no schema do Appwrite
+      // o campo onboardedAt não exista ou não seja salvo no schema do Supabase
       const onboardedAt =
         (doc.onboardedAt as string | null | undefined) ||
         localStorage.getItem(`onboarded_${uid}`) ||
@@ -85,7 +85,7 @@ export async function markOnboarded(uid: string) {
   localStorage.setItem(`onboarded_${uid}`, now);
   console.log("✅ [markOnboarded] localStorage salvo para uid:", uid);
 
-  // Tenta salvar no Appwrite também (best-effort, não bloqueia)
+  // Tenta salvar no Supabase também (best-effort, não bloqueia)
   try {
     const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
       Query.equal("userId", uid),
@@ -96,12 +96,12 @@ export async function markOnboarded(uid: string) {
         onboardedAt: now,
         updatedAt: now,
       });
-      console.log("✅ [markOnboarded] Appwrite atualizado. onboardedAt retornado:", updated.onboardedAt);
+      console.log("✅ [markOnboarded] Supabase atualizado. onboardedAt retornado:", updated.onboardedAt);
     } else {
-      console.warn("⚠️ [markOnboarded] nenhum documento encontrado no Appwrite para uid:", uid);
+      console.warn("⚠️ [markOnboarded] nenhum documento encontrado no Supabase para uid:", uid);
     }
   } catch (err) {
-    console.error("❌ [markOnboarded] erro ao salvar no Appwrite:", err);
+    console.error("❌ [markOnboarded] erro ao salvar no Supabase:", err);
   }
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AppUser } from "@/App";
 import { Link } from "react-router-dom";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import { toMillis } from "@/lib/timestamp";
 import DashboardLayout from "@/ui/DashboardLayout";
 import StockHealthWidget from "@/ui/StockHealthWidget";

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppUser } from "@/App";
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import { toDate } from "@/lib/timestamp";
 import DashboardLayout from "@/ui/DashboardLayout";
 import { formatMoney, toCents } from "@/lib/money";

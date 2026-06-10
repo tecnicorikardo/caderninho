@@ -1,5 +1,5 @@
-import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
+import { ID } from "@/lib/supabase";
 import { nowISO } from "@/lib/timestamp";
 import type { PaymentType, Receivable, ReceivableStatus, Sale, SaleItem } from "@/lib/types";
 

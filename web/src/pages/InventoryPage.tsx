@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AppUser } from "@/App";
-import { databases, DATABASE_ID, COLLECTIONS, Query, withRetry } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { databases, DATABASE_ID, COLLECTIONS, Query, withRetry } from "@/lib/supabase";
+import { ID } from "@/lib/supabase";
 import { toDate, toMillis } from "@/lib/timestamp";
 import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/ui/DashboardLayout";

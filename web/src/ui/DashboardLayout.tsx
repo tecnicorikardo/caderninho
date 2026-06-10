@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { account } from "@/lib/appwrite";
+import { account } from "@/lib/supabase";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AIAssistant from "@/ui/AIAssistant";
 import { useUserContext } from "@/lib/userContext";
@@ -148,7 +148,7 @@ export default function DashboardLayout({
   }
 
   async function handleAlreadyVerified() {
-    // Recarrega a página para buscar o status atualizado do Appwrite
+    // Recarrega a página para buscar o status atualizado do Supabase
     localStorage.setItem("email_verify_dismissed", "1");
     window.location.reload();
   }

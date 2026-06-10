@@ -3,7 +3,7 @@ import type { AppUser } from "@/App";
 import type { PlanStatus } from "@/lib/plan";
 import DashboardLayout from "@/ui/DashboardLayout";
 
-const FUNCTION_URL = import.meta.env.VITE_APPWRITE_FUNCTION_URL as string;
+const FUNCTION_URL = import.meta.env.VITE_PAYMENT_FUNCTION_URL as string;
 const PRICE_PER_MONTH = 29.90;
 
 const MONTH_OPTIONS = [1, 2, 3, 6, 12];
@@ -51,7 +51,7 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
     if (cpfClean.length !== 11) { setError("Informe um CPF valido (11 digitos)."); return; }
 
     if (!FUNCTION_URL) {
-      setError("URL da funcao nao configurada (VITE_APPWRITE_FUNCTION_URL).");
+      setError("URL da funcao nao configurada (VITE_PAYMENT_FUNCTION_URL).");
       return;
     }
 
