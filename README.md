@@ -6,8 +6,11 @@ PWA em React + TypeScript + Tailwind para gestao comercial.
 
 - `web/`: app PWA (Vite) hospedado no Firebase Hosting.
 - `supabase/`: schema SQL, indices e politicas RLS do banco Supabase.
-- `functions/`: Firebase Functions usadas pelo fluxo Pix/planos.
+- `supabase/functions/mp-payment`: Edge Function para Pix EFI e ativacao do plano Pro.
 - `tests/`: testes Playwright.
+
+O Firebase fica no plano Spark e e usado apenas para Hosting. O projeto nao
+depende de Firebase Functions.
 
 ## Rodar localmente
 
@@ -24,7 +27,6 @@ cp .env.example .env.local
 VITE_SUPABASE_URL=https://nhrzaeteadlzvgqfqzkr.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sua-publishable-key
 VITE_DB_PROVIDER=supabase
-VITE_PAYMENT_FUNCTION_URL=https://southamerica-east1-bloquinhodigital.cloudfunctions.net/mpPayment
 ```
 
 3. Instale e rode:
@@ -41,11 +43,11 @@ tabelas, indices, triggers de `updatedAt` e politicas RLS para isolamento por
 usuario autenticado.
 
 No frontend use apenas a publishable key. A `service_role` deve ficar somente
-em ambiente de servidor, como Firebase Functions.
+em ambiente de servidor, como Supabase Edge Function.
 
-## Firebase Functions
+## Supabase Edge Function Pix
 
-Configure as variaveis de servidor antes do deploy:
+Configure as secrets da Edge Function antes do deploy:
 
 ```bash
 SUPABASE_URL=https://nhrzaeteadlzvgqfqzkr.supabase.co
@@ -58,11 +60,19 @@ EFI_PIX_KEY=sua-chave-pix
 APP_BASE_URL=https://bloquinhodigital.web.app
 ```
 
+Guia detalhado: `CONFIGURAR_SUPABASE_EDGE_FUNCTION_PIX.md`.
+
+Deploy da Edge Function:
+
+```bash
+supabase functions deploy mp-payment --project-ref nhrzaeteadlzvgqfqzkr --no-verify-jwt --use-api
+```
+
 ## Build e deploy
 
 ```bash
 cd web
 npm run build
 cd ..
-firebase deploy --only hosting,functions
+firebase deploy --only hosting
 ```

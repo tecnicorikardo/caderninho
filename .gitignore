@@ -5,7 +5,8 @@ web/out
 web/dist
 web/.env.local
 
-# Firebase Functions
+# Legacy Firebase Functions local files
+/functions/
 functions/.env
 functions/.env.local
 functions/.env.*

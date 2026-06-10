@@ -1,0 +1,4 @@
+project_id = "bloquinhodigital"
+
+[functions.mp-payment]
+verify_jwt = false

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { AppUser } from "@/App";
 import type { PlanStatus } from "@/lib/plan";
+import { supabase } from "@/lib/supabase";
 import DashboardLayout from "@/ui/DashboardLayout";
 
-const FUNCTION_URL = import.meta.env.VITE_PAYMENT_FUNCTION_URL as string;
 const PRICE_PER_MONTH = 29.90;
 
 const MONTH_OPTIONS = [1, 2, 3, 6, 12];
@@ -20,6 +20,10 @@ type PixData = {
   pixCopiaECola: string;
   qrCodeImage: string | null;
   expiresIn: number;
+};
+
+type CreateChargeResponse = PixData & {
+  error?: string;
 };
 
 export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysLeft = 0 }: Props) {
@@ -50,31 +54,30 @@ export default function PlansPage({ user, currentPlan, planExpiresAt, trialDaysL
     const cpfClean = customerCpf.replace(/\D/g, "");
     if (cpfClean.length !== 11) { setError("Informe um CPF valido (11 digitos)."); return; }
 
-    if (!FUNCTION_URL) {
-      setError("URL da funcao nao configurada (VITE_PAYMENT_FUNCTION_URL).");
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setPixData(null);
     try {
-      console.log("[PlansPage] chamando create-charge", { FUNCTION_URL, months });
-      const res = await fetch(`${FUNCTION_URL}/create-charge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.uid,
-          months,
-          customerName: customerName.trim(),
-          customerCpf: cpfClean,
-          customerEmail: customerEmail.trim(),
-        }),
-      });
-      const data = await res.json();
-      console.log("[PlansPage] resposta create-charge", res.status, data);
-      if (!res.ok || data.error) throw new Error(data.error || "Erro ao criar cobranca");
-      setPixData(data as PixData);
+      console.log("[PlansPage] chamando mp-payment", { months });
+      const { data, error: invokeError } = await supabase.functions.invoke<CreateChargeResponse>(
+        "mp-payment",
+        {
+          body: {
+            action: "create-charge",
+            userId: user.uid,
+            months,
+            customerName: customerName.trim(),
+            customerCpf: cpfClean,
+            customerEmail: customerEmail.trim(),
+          },
+        },
+      );
+
+      console.log("[PlansPage] resposta mp-payment", data);
+      if (invokeError) throw new Error(invokeError.message || "Erro ao criar cobranca");
+      if (!data) throw new Error("Resposta vazia ao criar cobranca");
+      if (data.error) throw new Error(data.error);
+      setPixData(data);
     } catch (e) {
       console.error("[PlansPage] erro create-charge", e);
       setError(e instanceof Error ? e.message : "Erro ao iniciar pagamento");
