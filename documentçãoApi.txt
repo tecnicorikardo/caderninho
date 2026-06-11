@@ -1,0 +1,192 @@
+Pular para o conteúdo principal
+
+Logo do Site
+Módulos e PluginsWHMCS
+Nessa página
+WHMCS
+Módulo de Integração Efí para WHMCS Oficial - Versão 2.3
+
+
+O módulo Efí para WHMCS permite gerar cobranças para serem pagas via Pix, Boleto, Cartão ou Open Finance por meio da nossa API. Além disso, permite receber pagamentos através do checkout transparente.
+
+Este é o Módulo Oficial de integração fornecido pela Efí para o WHMCS. Com ele, o responsável pela conta WHMCS pode receber pagamentos via Pix, Boleto, Cartão ou Open Finance e, assim que a cobrança tem uma confirmação de pagamento a Efí envia uma notificação automática para o WHMCS.
+
+O módulo Efí permite que o cliente final escolha uma forma de pagamento específica a ser utilizada exclusivamente para cobranças recorrentes. Isso proporciona maior conveniência e automação no processo de pagamento, garantindo que os valores sejam debitados automaticamente de acordo com o ciclo de faturamento definido.
+
+
+Importante!
+Para o correto funcionamento, recomendamos que leia com atenção este documento e faça exatamente o que está descrito com relação às configurações necessárias em nosso módulo, inclusive atentando-se aos requisitos de versões do PHP do servidor e do WHMCS.
+
+
+1. Requisitos do sistema
+Versão do PHP: 8.1
+Versão do WHMCS: 8.9.x
+
+Importante!
+Os requisitos do sistema foram definidos de acordo com os nossos testes. Se seu sistema não se encaixa nos requisitos, não significa que o módulo não vai funcionar em seu WHMCS, mas sim, que não testamos no mesmo ambiente. Portanto, não garantimos o funcionamento deste módulo em ambientes diferentes dos citados acima.
+
+
+2. Instalação do Módulo Efí para WHMCS
+Faça o download da última versão do módulo;
+Descompacte o arquivo baixado;
+
+Copie o arquivo efi.php e a pasta efi, para o diretório /modules/gateways da instalação do WHMCS;
+
+Altere as permissões do arquivo copiado utilizando o comando abaixo
+chmod 777 modules/gateways/efi.php
+
+Altere as permissões da pasta copiada utilizando o comando abaixo
+chmod 777 modules/gateways/efi/ -R
+
+Copie o arquivo efi.php e a pasta efi, disponível no diretório callback, para o diretório modules/gateways/callback.
+
+Altere as permissões do arquivo copiado utilizando o comando abaixo
+chmod 777 modules/gateways/callback/efi.php
+
+Altere as permissões da pasta copiada utilizando o comando abaixo
+chmod 777 modules/gateways/callback/efi/ -R
+
+Copie o arquivo efi.php, disponível no diretório hooks, para o diretório includes/hooks. Ele deve estar no caminho includes/hooks/efi.php
+
+Altere as permissões do arquivo copiado utilizando o comando: chmod 777 includes/hooks/efi.php
+
+Crie uma pasta na raiz do seu servidor e insira seu certificado na pasta.
+
+
+Aviso!
+O passo 11 só é necessário no caso de utilização do Pix ou Open Finance.
+
+
+Ao final da instalação, os arquivos do módulo Efí devem estar na seguinte estrutura no WHMCS:
+
+includes/hooks/
+  |- efi.php
+ modules/gateways/
+  |- callback/efi/
+  |- callback/efi.php
+  |- efi/
+  |- efi.php
+
+
+Certificado para utilização da API PIX ou Open finance
+Todas as requisições devem conter um certificado de segurança que será fornecido pela Efí dentro da sua conta, no formato PFX(.p12). Essa exigência está descrita na integra no manual de segurança do PIX.
+
+Caso ainda não tenha seu certificado, basta seguir o passo a passo do link a seguir para gerar um novo clicando aqui.
+
+3. Configurações do Módulo Efí para WHMCS
+banner
+Tela de Configurações do Módulo Efí para WHMCS
+
+Dentro do painel administrativo do WHMCS, acesse o menu Opções> Portais Para Pagamentos> Payment Gateways. Clique na opção Efí. A tela mostrada abaixo será exibida. Dentro do formulário, você deverá preencher os seguintes campos:
+
+Client_id e Client_secret Produção: Deve ser preenchido com o client_id e o client_secret de produção de sua conta Efí. Este campo é obrigatório e pode ser encontrado no menu "API" -> "Minhas Aplicações". Em seguida, selecione sua aplicação criada, conforme é mostrado na imagem;
+
+Client_id e Client_secret Desenvolvimento: Deve ser preenchido com o client_id e o client_secret de desenvolvimento de sua conta Efí. Este campo é obrigatório e pode ser encontrado no menu "API" -> "Minhas Aplicações". Em seguida, selecione sua aplicação criada, conforme é mostrado imagem;
+
+Identificador de conta: Deve ser preenchido com o identificador da sua conta Efí. Este campo é obrigatório e pode ser encontrado no menu "API" -> "Identificador de conta", conforme é mostrado na imagem
+
+Usuário administrador do WHMCS: Deve ser preenchido com o usuário administrador do WHMCS. É necessário utilizar o mesmo usuário que o administrador do WHMCS utiliza para fazer login na área administrativa de sua conta. Este campo é de preenchimento obrigatório;
+
+Desconto do Boleto: Informe o valor desconto que deverá ser aplicado aos boletos gerados exclusivamente pela Efí. Esta informação é opcional;
+
+Tipo de desconto: Informe o tipo de desconto (porcentagem ou valor fixo) que deverá ser aplicado aos boletos gerados exclusivamente pela Efí. Esta informação é opcional;
+
+Número de dias para o vencimento do Boleto: Informe o número de dias corridos para o vencimento do boleto Efí após a cobrança ser gerada. Se o campo estiver vazio, o valor será 0;
+
+E-mail de cobrança - Efí: Caso seja de seu interesse, habilite o envio de emails de cobrança da Efí para o cliente final;
+
+Configuração de Multa:Caso seja de seu interesse, informe o valor, em porcentagem, cobrado de multa após o vencimento. Por exemplo: se você quiser 2%, você deve informar 2. Mínimo de 0.01 e máximo de 10. Integer;
+
+Configuração de Juros: valor cobrado de juros por dia após a data de vencimento. Por exemplo: se você quiser 0,033%, você deve informar 0.033. Mínimo de 0.001 e máximo de 0.33;
+
+Observação: Permite incluir no boleto uma mensagem para o cliente;
+
+Sandbox: Caso seja de seu interesse, habilite o ambiente de testes da API Efí;
+
+Debug: Neste campo é possível habilitar os logs de transação e de erros da Efí no painel WHMCS;
+
+Chave PIX: Se utilizado CNPJ, informar sem pontos e espaços, ex. 11111111111121;
+
+Certificado Pix: Deve ser preenchido com o caminho do certificado salvo em seu servidor;
+
+Desconto: Informe o valor de desconto que deverá ser aplicado ao pix gerado exclusivamente pela Efí;
+
+Validade da Cobrança PIX: Deve ser informado o período de validade em dias da cobrança PIX;
+
+Nome: Deve ser informado o nome do titular da conta;
+
+Documento: Deve ser informado o documento (CPF ou CNPJ) do titular da conta;
+
+Agência: Deve ser informado a agência do titular;
+
+Conta : Deve ser informado o número referente a conta;
+
+Tipo de conta: Deve ser informado o tipo de conta referente ao titular;
+
+Validar mTLS: Marque o campo "Validar mTLS" caso deseje utilizar a validação mTLS em seu servidor. Você pode visualizar mais detalhes clicando aqui.
+
+PIX: Selecione essa opção caso deseje deixar a opção PIX como forma de pagamento;
+
+Boleto: Selecione essa opção caso deseje deixar a opção boleto como forma de pagamento;
+
+Cartão de Crédito: Selecione essa opção caso deseje deixar a opção de cartão de crédito como forma de pagamento;
+
+Open Finance: Selecione essa opção caso deseje deixar a opção de open finance como forma de pagamento.
+
+
+Chave Pix
+Caso a sua chave Pix esteja cadastrada como número de telefone, não se esqueça de seguir o padrão definido pelo BACEN informando +55 DDD e o número, exemplo: +5531988887777
+
+
+
+Atenção!
+Importante salientar que os boletos gerados em sandbox não são válidos e não podem ser pagos, possuem a linha digitável "zerada" e uma marca d'água ao fundo informando ser um boleto de teste.
+
+Os pagamentos de cobranças de sandbox utilizando cartão de crédito são fictícios, mesmo se utilizar um cartão "real". Todos os pagamentos de cartão neste ambiente terão o pagamento confirmado automaticamente, mas é apenas uma alteração de status para "Pago". Este recurso permite que você teste a notificação do status paid.
+
+Isso significa que todos os pagamentos realizados em sandbox não são reais e, portanto, não há cobrança de nenhuma importância financeira.
+
+É importante saber que as palavras Playground, Sandbox e Ambiente de Desenvolvimento, no contexto da Efí, são sinônimos no sentido de fazerem referência ao local de testes que oferecemos em que você pode testar à vontade sua integração com a API.
+
+
+4. Erros Comuns de Integração
+Antes mesmo do módulo tentar gerar uma cobrança alguns campos requisitados na integração passam por uma validação. Os erros que esta validação podem retornar são:
+
+Nome Inválido: O nome informado pelo cliente final é muito curto, assim, deve ser informado o nome completo;
+
+E-mail Inválido: O email informado pelo cliente final é inválido (não segue o padrão xxxxx@xxxx.com) ou não existe;
+
+Telefone Inválido: O telefone informado pelo cliente final não existe ou o DDD está incorreto;
+
+Documento Inválido: O número do CPF/CNPJ do cliente final é invalido;
+
+Documento Nulo: O campo referente ao CPF e/ou CNPJ do cliente não existe no WHMCS ou não está preenchido;
+
+Razão Social Inválida: A Razão Social é inválida. O cliente deve digitar no campo "Empresa" do WHMCS o nome empresarial que consta na Receita Federal;
+
+Razão Social Nula: O campo "Empresa" do WHMCS não está preenchido;
+
+Erro Inesperado: Houve algum erro na integração. Provavelmente você não preencheu todos os campos do módulo corretamente, ou a versão do PHP do WHMCS não é compatível com a API Efí. Você deverá ativar o modo Debug do módulo para saber mais detalhes.
+
+A partir da versão 0.2.7 do módulo Efí/WHMCS, disponibilizamos o callback automático do WHMCS para a Efí nos casos de cancelamento da fatura. Portanto, sempre que uma fatura for cancelada no WHMCS, ela é automaticamente cancelada na Efí.
+
+Ainda que nenhum destes erros de validação sejam retornados, a API Efí poderá retornar erros referentes à geração da cobrança. Para interpretar os retornos da API e, claro, corrigir possíveis erros de validação de dados ou outros similares, acesse a página Interpretando Erros da API.
+
+
+5. Suporte e Sugestões
+Sua sugestão de novas ideias e implementações para o módulo da Efí para WHMCS é muito importante. Portanto, caso você tenha alguma ideia, entre em contato com a nossa equipe. Iremos analisar sua sugestão e avaliar a possibilidade de implantação.
+
+Caso você tenha alguma dúvida, entre em contato conosco pelo site Efí.
+
+Última atualização em 3 de out. de 2024
+Efí Bank
+Av Paulista, 1337, Edifício Paulista 1 - Bela Vista, São Paulo, SP - 01311-200, Brasil
+(11) 2394 2208
+São Paulo e região
+0800 941 2343
+Ligações de telefone fixo
+4000 1234
+Regiões metropolitanas
+0800 940 0361
+Ouvidoria
+© 2007-2023 • Efí - Instituição de Pagamento. Todos os direitos reservados. Efí S.A. CNPJ: 09.089.356/0001-18
