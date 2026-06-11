@@ -5,6 +5,7 @@
 - [x] Node.js instalado
 - [x] Playwright instalado (v1.59.1)
 - [x] Navegador Chromium instalado
+- [x] **Supabase configurado** (variáveis em `web/.env.local`) ✅
 - [ ] **Credenciais de teste configuradas** ⚠️
 
 ## 🔑 Configurar Credenciais (OBRIGATÓRIO)

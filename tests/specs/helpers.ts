@@ -52,7 +52,7 @@ async function waitForDashboardData(page: Page) {
 
 /**
  * Navega para uma rota protegida usando navegação SPA (clique no link)
- * para evitar que o Firebase Auth perca a sessão.
+ * para evitar que o Supabase Auth perca a sessão.
  */
 export async function gotoAndWait(page: Page, route: string) {
   // Garante que está no dashboard com Auth pronto
@@ -84,7 +84,7 @@ export async function gotoAndWait(page: Page, route: string) {
     if (isNavVisible) {
       await navLink.click();
     } else {
-      // Fallback: usa page.goto mas aguarda o Firebase Auth reinicializar
+      // Fallback: usa page.goto mas aguarda o Supabase Auth reinicializar
       await page.goto(route);
       // Aguarda a URL ser a correta (pode redirecionar para dashboard e voltar)
       await page.waitForTimeout(2000);

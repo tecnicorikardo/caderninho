@@ -4,12 +4,12 @@ import { login, EMAIL, PASSWORD } from "./helpers";
 test.describe("Autenticação", () => {
   test("login com credenciais inválidas mostra erro", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('input[type="email"]');
+    await page.waitForSelector('input[type="email"]', { timeout: 15_000 });
     await page.fill('input[type="email"]', "invalido@teste.com");
     await page.fill('input[type="password"]', "senhaerrada");
     await page.click('button[type="submit"]');
-    // Deve aparecer mensagem de erro (Firebase retorna erro)
-    await expect(page.locator("text=/erro|inválid|invalid|wrong/i").first()).toBeVisible({ timeout: 8_000 });
+    // Deve aparecer mensagem de erro específica do Supabase
+    await expect(page.locator("text=/E-mail ou senha incorretos|Invalid credentials|erro/i").first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("login com credenciais válidas redireciona para dashboard", async ({ page }) => {
