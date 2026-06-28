@@ -62,6 +62,14 @@ APP_BASE_URL=https://bloquinhodigital.web.app
 
 Guia detalhado: `CONFIGURAR_SUPABASE_EDGE_FUNCTION_PIX.md`.
 
+## Keep-alive Supabase
+
+O workflow `.github/workflows/keep-alive.yml` faz um ping gratuito no Supabase a
+cada 3 dias para reduzir o risco de pausa por inatividade no plano Free.
+
+Configure o secret `SUPABASE_PUBLISHABLE_KEY` no GitHub Actions. Guia:
+`MANTER_SUPABASE_ATIVO.md`.
+
 Deploy da Edge Function:
 
 ```bash

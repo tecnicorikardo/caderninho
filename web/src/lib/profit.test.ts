@@ -3,19 +3,19 @@ import { calculateBrandCommissionCents, calculateItemEarnings, calculateSaleEarn
 import type { SaleItem, BrandMargin } from "./types";
 
 describe("profit.ts - calculateBrandCommissionCents", () => {
-  it("calcula comissão de 10% corretamente", () => {
+  it("calcula comissao de 10% corretamente", () => {
     expect(calculateBrandCommissionCents(10000, 10)).toBe(1000);
   });
 
-  it("calcula comissão de 30% corretamente", () => {
+  it("calcula comissao de 30% corretamente", () => {
     expect(calculateBrandCommissionCents(6429, 30)).toBe(1929);
   });
 
-  it("calcula comissão de 0% corretamente", () => {
+  it("calcula comissao de 0% corretamente", () => {
     expect(calculateBrandCommissionCents(10000, 0)).toBe(0);
   });
 
-  it("calcula comissão de 50% corretamente", () => {
+  it("calcula comissao de 50% corretamente", () => {
     expect(calculateBrandCommissionCents(10000, 50)).toBe(5000);
   });
 
@@ -26,13 +26,12 @@ describe("profit.ts - calculateBrandCommissionCents", () => {
 
 describe("profit.ts - calculateItemEarnings", () => {
   const mockBrandMargins: BrandMargin[] = [
-    { brand: "Natura", marginPct: 30 },
-    { brand: "Avon", marginPct: 25 },
+    { brand: "Natura", marginPercent: 30 },
+    { brand: "Avon", marginPercent: 25 },
   ];
 
   it("calcula lucro de um item corretamente", () => {
     const item: SaleItem = {
-      id: "1",
       productId: "prod1",
       productName: "Produto Teste",
       brand: "Natura",
@@ -50,13 +49,12 @@ describe("profit.ts - calculateItemEarnings", () => {
     expect(result.revenueCents).toBe(12858);
     expect(result.costCents).toBe(9000);
     expect(result.grossProfitCents).toBe(3858);
-    expect(result.commissionCents).toBe(3858); // comissão = lucro bruto
+    expect(result.commissionCents).toBe(3858); // comissao = lucro bruto
     expect(result.profitCents).toBe(3858);
   });
 
-  it("calcula lucro zero quando preço = custo", () => {
+  it("calcula lucro zero quando preco = custo", () => {
     const item: SaleItem = {
-      id: "2",
       productId: "prod2",
       productName: "Produto Sem Lucro",
       brand: "Avon",
@@ -74,11 +72,10 @@ describe("profit.ts - calculateItemEarnings", () => {
     expect(result.profitCents).toBe(0);
   });
 
-  it("calcula prejuízo quando preço < custo", () => {
+  it("calcula prejuizo quando preco < custo", () => {
     const item: SaleItem = {
-      id: "3",
       productId: "prod3",
-      productName: "Produto com Prejuízo",
+      productName: "Produto com Prejuizo",
       brand: "Natura",
       quantity: 1,
       unitPriceCents: 4000,
@@ -89,14 +86,13 @@ describe("profit.ts - calculateItemEarnings", () => {
 
     expect(result.revenueCents).toBe(4000);
     expect(result.costCents).toBe(5000);
-    expect(result.grossProfitCents).toBe(-1000); // Prejuízo
+    expect(result.grossProfitCents).toBe(-1000); // Prejuizo
     expect(result.commissionCents).toBe(-1000);
     expect(result.profitCents).toBe(-1000);
   });
 
-  it("retorna 0 para item sem preço ou quantidade", () => {
+  it("retorna 0 para item sem preco ou quantidade", () => {
     const item: SaleItem = {
-      id: "4",
       productId: "prod4",
       productName: "Produto Incompleto",
       brand: "Natura",
@@ -115,14 +111,13 @@ describe("profit.ts - calculateItemEarnings", () => {
 
 describe("profit.ts - calculateSaleEarnings", () => {
   const mockBrandMargins: BrandMargin[] = [
-    { brand: "Natura", marginPct: 30 },
-    { brand: "Avon", marginPct: 25 },
+    { brand: "Natura", marginPercent: 30 },
+    { brand: "Avon", marginPercent: 25 },
   ];
 
-  it("calcula lucro total de múltiplos itens", () => {
+  it("calcula lucro total de multiplos itens", () => {
     const items: SaleItem[] = [
       {
-        id: "1",
         productId: "prod1",
         productName: "Produto 1",
         brand: "Natura",
@@ -131,7 +126,6 @@ describe("profit.ts - calculateSaleEarnings", () => {
         unitCostCents: 4500,
       },
       {
-        id: "2",
         productId: "prod2",
         productName: "Produto 2",
         brand: "Avon",
@@ -163,10 +157,9 @@ describe("profit.ts - calculateSaleEarnings", () => {
     expect(result.profitCents).toBe(0);
   });
 
-  it("acumula corretamente itens com lucro e prejuízo", () => {
+  it("acumula corretamente itens com lucro e prejuizo", () => {
     const items: SaleItem[] = [
       {
-        id: "1",
         productId: "prod1",
         productName: "Produto com Lucro",
         brand: "Natura",
@@ -175,9 +168,8 @@ describe("profit.ts - calculateSaleEarnings", () => {
         unitCostCents: 7000,
       },
       {
-        id: "2",
         productId: "prod2",
-        productName: "Produto com Prejuízo",
+        productName: "Produto com Prejuizo",
         brand: "Avon",
         quantity: 1,
         unitPriceCents: 5000,
@@ -188,8 +180,8 @@ describe("profit.ts - calculateSaleEarnings", () => {
     const result = calculateSaleEarnings(items, mockBrandMargins);
 
     // Item 1: lucro = 3000
-    // Item 2: prejuízo = -1000
-    // Total: lucro líquido = 2000
+    // Item 2: prejuizo = -1000
+    // Total: lucro liquido = 2000
     expect(result.revenueCents).toBe(15000);
     expect(result.costCents).toBe(13000);
     expect(result.grossProfitCents).toBe(2000);

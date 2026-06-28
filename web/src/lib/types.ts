@@ -6,8 +6,11 @@ export type BrandMargin = {
   marginPercent: number;
 };
 
-// Timestamp compatível com Supabase (ISO string) e Firebase (objeto Timestamp)
-export type AppTimestamp = string | { toDate(): Date; seconds: number };
+// Timestamp compativel com Supabase (ISO string) e Firebase (objeto Timestamp)
+export type AppTimestamp =
+  | string
+  | { toDate(): Date; seconds: number }
+  | { seconds: number; nanoseconds?: number };
 
 export type UserProfile = {
   createdAt: AppTimestamp;

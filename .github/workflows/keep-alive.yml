@@ -1,27 +1,52 @@
-name: Appwrite Keep-Alive
+name: Supabase Keep Alive
 
 on:
   schedule:
-    # Roda a cada 5 dias às 08:00 UTC (05:00 Brasilia)
-    - cron: '0 8 */5 * *'
-  workflow_dispatch: # permite rodar manualmente também
+    # A cada 3 dias, 09:17 UTC. Evita os minutos mais concorridos do GitHub Actions.
+    - cron: "17 9 */3 * *"
+  workflow_dispatch:
 
 jobs:
   ping:
+    name: Ping Supabase REST API
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: https://nhrzaeteadlzvgqfqzkr.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
     steps:
-      - name: Ping Appwrite para evitar pausa por inatividade
+      - name: Validar secret obrigatorio
+        shell: bash
         run: |
-          echo "Fazendo ping no Appwrite..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X GET "https://fra.cloud.appwrite.io/v1/health" \
-            -H "X-Appwrite-Project: caderninhodigital")
-          echo "Status: $STATUS"
-          
-          # Também faz uma listagem leve no banco para garantir atividade real
-          curl -s -o /dev/null \
-            -X GET "https://fra.cloud.appwrite.io/v1/databases/bloquinho/collections" \
-            -H "X-Appwrite-Project: caderninhodigital" \
-            -H "X-Appwrite-Key: ${{ secrets.APPWRITE_API_KEY }}"
-          
-          echo "Ping concluido com sucesso!"
+          if [ -z "${SUPABASE_PUBLISHABLE_KEY}" ]; then
+            echo "::error::Configure o repository secret SUPABASE_PUBLISHABLE_KEY no GitHub."
+            exit 1
+          fi
+
+      - name: Ping Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          endpoint="${SUPABASE_URL%/}/rest/v1/users_profiles?select=id&limit=1"
+          echo "Chamando endpoint REST do Supabase..."
+
+          status=$(curl --silent --show-error --location \
+            --output response.json \
+            --write-out "%{http_code}" \
+            --header "apikey: ${SUPABASE_PUBLISHABLE_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_PUBLISHABLE_KEY}" \
+            --header "Accept: application/json" \
+            "$endpoint")
+
+          echo "HTTP status: ${status}"
+
+          if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+            echo "Resposta da API:"
+            cat response.json
+            echo "::error::Ping do Supabase falhou. Se o projeto estiver pausado, restaure no painel da Supabase e rode o workflow manualmente."
+            exit 1
+          fi
+
+          echo "Supabase keep-alive concluido."
