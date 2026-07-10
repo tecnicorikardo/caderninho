@@ -14,7 +14,9 @@ export class SupabaseAuthService implements IAuthService {
   async signUp(email: string, password: string): Promise<{ userId: string }> {
     try {
       const user = await account.create(ID.unique(), email, password);
-      await this.signIn(email, password);
+      if (!user.emailConfirmationRequired) {
+        await this.signIn(email, password);
+      }
       return { userId: user.$id };
     } catch (error: any) {
       throw new Error(error.message || "Erro ao criar conta");

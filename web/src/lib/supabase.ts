@@ -84,6 +84,7 @@ type SupabaseUserView = {
   email: string;
   name?: string;
   emailVerification: boolean;
+  emailConfirmationRequired?: boolean;
 };
 
 function toUserView(user: {
@@ -130,15 +131,25 @@ function normalizeError(error: { message?: string; code?: string; status?: numbe
 
 export const account = {
   async create(_userId: string, email: string, password: string, name?: string) {
+    const emailRedirectTo = typeof window !== "undefined"
+      ? `${window.location.origin}/`
+      : undefined;
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: name ? { name } : undefined },
+      options: {
+        data: name ? { name } : undefined,
+        emailRedirectTo,
+      },
     });
 
     if (error) throw normalizeError(error);
     if (!data.user) throw new Error("Nao foi possivel criar a conta.");
-    return toUserView(data.user);
+    return {
+      ...toUserView(data.user),
+      emailConfirmationRequired: !data.session,
+    };
   },
 
   async createEmailPasswordSession(email: string, password: string) {

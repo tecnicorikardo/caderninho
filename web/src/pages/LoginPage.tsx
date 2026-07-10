@@ -43,6 +43,7 @@ function validateCpf(cpf: string): boolean {
 
 function errorMessage(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes("Email not confirmed") || msg.includes("email_not_confirmed")) return "Confirme seu e-mail antes de entrar.";
   if (msg.includes("Invalid credentials") || msg.includes("user_invalid_credentials")) return "E-mail ou senha incorretos.";
   if (msg.includes("email-already-in-use") || msg.includes("user_already_exists")) return "Este e-mail já está cadastrado.";
   if (msg.includes("duplicate key") || msg.includes("users_profiles_cpf_key")) return "Este CPF já está cadastrado. Faça login ou recupere sua senha.";
@@ -50,6 +51,67 @@ function errorMessage(err: unknown): string {
   if (msg.includes("Invalid email") || msg.includes("user_invalid_email")) return "E-mail inválido.";
   if (msg.includes("too-many-requests") || msg.includes("rate_limit")) return "Muitas tentativas. Aguarde alguns minutos.";
   return "Algo deu errado. Tente novamente.";
+}
+
+function pendingProfileKey(email: string) {
+  return `pending_profile_${email.trim().toLowerCase()}`;
+}
+
+async function upsertRegistrationProfile(userId: string, cpfClean: string) {
+  const cpfCheck = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
+    Query.equal("cpf", cpfClean),
+  ]).catch(() => ({ documents: [] }));
+
+  if (cpfCheck.documents.some(doc => doc.userId !== userId)) {
+    throw new Error("users_profiles_cpf_key");
+  }
+
+  const now = new Date().toISOString();
+  const profileData = {
+    userId,
+    cpf: cpfClean,
+    createdAt: now,
+    updatedAt: now,
+    growthLevel: "Semente",
+    brandMargins: JSON.stringify([
+      { brand: "Natura", marginPercent: 30 },
+      { brand: "Avon", marginPercent: 30 },
+      { brand: "Casa & Estilo", marginPercent: 15 },
+    ]),
+    planStatus: "free",
+    themeColor: null,
+  };
+
+  const existingProfile = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
+    Query.equal("userId", userId),
+    Query.limit(1),
+  ]).catch(() => ({ documents: [] }));
+
+  if (existingProfile.documents.length > 0) {
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, existingProfile.documents[0].$id, {
+      ...profileData,
+      createdAt: existingProfile.documents[0].createdAt ?? now,
+    });
+    return;
+  }
+
+  await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), profileData, [
+    Permission.read(Role.user(userId)),
+    Permission.update(Role.user(userId)),
+    Permission.delete(Role.user(userId)),
+  ]);
+}
+
+async function applyPendingRegistrationProfile(userId: string, email: string) {
+  const key = pendingProfileKey(email);
+  const raw = localStorage.getItem(key);
+  if (!raw) return;
+
+  const pending = JSON.parse(raw) as { cpf?: string };
+  if (!pending.cpf) return;
+
+  await upsertRegistrationProfile(userId, pending.cpf);
+  localStorage.removeItem(key);
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -131,6 +193,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
       if (mode === "login") {
         await account.createEmailPasswordSession(email, password);
         const user = await account.get();
+        await applyPendingRegistrationProfile(user.$id, user.email);
         const appUser: AppUser = { uid: user.$id, email: user.email };
 
         if (biometricAvailable && !hasBiometricCredential()) {
@@ -150,62 +213,25 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
         if (!validateCpf(cpfClean)) { setError("CPF inválido. Verifique os dígitos."); setLoading(false); return; }
         if (password.length < 8) { setError("A senha deve ter pelo menos 8 caracteres."); setLoading(false); return; }
 
-        // 1. Cria conta e faz login para ter sessão ativa
+        // Cria conta. Se exigir confirmação de e-mail, a sessão fica pendente.
         const user = await account.create(ID.unique(), email, password, name.trim());
-        await account.createEmailPasswordSession(email, password);
-
-        // 2. Com sessão ativa, verifica CPF único
-        const cpfCheck = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
-          Query.equal("cpf", cpfClean),
-        ]).catch(() => ({ documents: [] }));
-
-        if (cpfCheck.documents.length > 0) {
-          await account.deleteSession("current").catch(() => {});
-          setError("Este CPF já está cadastrado. Faça login ou recupere sua senha.");
+        if (user.emailConfirmationRequired) {
+          localStorage.setItem(pendingProfileKey(email), JSON.stringify({ cpf: cpfClean }));
+          setMode("login");
+          setPassword("");
+          setSuccess("Conta criada! Confirme seu e-mail e depois faça login.");
           setLoading(false);
           return;
         }
 
-        // 3. Cria ou atualiza perfil com CPF
-        const now = new Date().toISOString();
-        const profileData = {
-          userId: user.$id,
-          cpf: cpfClean,
-          createdAt: now,
-          updatedAt: now,
-          growthLevel: "Semente",
-          brandMargins: JSON.stringify([
-            { brand: "Natura", marginPercent: 30 },
-            { brand: "Avon", marginPercent: 30 },
-            { brand: "Casa & Estilo", marginPercent: 15 },
-          ]),
-          planStatus: "free",
-          themeColor: null,
-        };
-
-        const existingProfile = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROFILES, [
-          Query.equal("userId", user.$id),
-          Query.limit(1),
-        ]).catch(() => ({ documents: [] }));
-
-        if (existingProfile.documents.length > 0) {
-          await databases.updateDocument(DATABASE_ID, COLLECTIONS.PROFILES, existingProfile.documents[0].$id, {
-            ...profileData,
-            createdAt: existingProfile.documents[0].createdAt ?? now,
-          });
-        } else {
-          await databases.createDocument(DATABASE_ID, COLLECTIONS.PROFILES, ID.unique(), profileData, [
-            Permission.read(Role.user(user.$id)),
-            Permission.update(Role.user(user.$id)),
-            Permission.delete(Role.user(user.$id)),
-          ]);
-        }
-        // 4. Envia email de verificacao
+        // Com sessão ativa, cria ou atualiza perfil com CPF.
+        await upsertRegistrationProfile(user.$id, cpfClean);
+        // Reenvia confirmacao se a conta ainda nao estiver verificada.
         await account.createVerification(`${window.location.origin}/`).catch(() => {});
 
         const appUser: AppUser = { uid: user.$id, email: user.email };
 
-        // 5. Oferece biometria se disponível
+        // Oferece biometria se disponivel.
         if (biometricAvailable && !hasBiometricCredential()) {
           setOfferBiometric(true);
           setPendingUser(appUser);

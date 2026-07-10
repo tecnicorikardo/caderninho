@@ -99,6 +99,26 @@ npx supabase projects list
 
 O projeto `nhrzaeteadlzvgqfqzkr` deve aparecer na lista.
 
+## Cadastro e login
+
+O app publicado usa Supabase Auth junto com o banco Supabase. Em 10/07/2026, o
+endpoint publico de configuracao do Supabase indicou:
+
+```text
+mailer_autoconfirm=false
+```
+
+Isso significa que o cadastro por e-mail exige confirmacao antes do primeiro
+login. Se o navegador mostrar erro `400 Bad Request` em:
+
+```text
+/auth/v1/token?grant_type=password
+```
+
+as causas mais comuns sao e-mail/senha incorretos ou e-mail ainda nao
+confirmado. Para liberar acesso imediato sem confirmacao, alterar no painel do
+Supabase em Authentication > Providers > Email > Confirm email.
+
 ## Sinal de app antigo ou configuracao errada
 
 Se o console do navegador mostrar chamadas para:
