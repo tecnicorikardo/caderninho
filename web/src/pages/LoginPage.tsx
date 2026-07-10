@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { account } from "@/lib/supabase";
+import { account, getAuthRedirectUrl } from "@/lib/supabase";
 import { ID, OAuthProvider, Permission, Role } from "@/lib/supabase";
 import { databases, DATABASE_ID, COLLECTIONS, Query } from "@/lib/supabase";
 import type { AppUser } from "@/App";
@@ -174,11 +174,32 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
 
   // ── Login com Google ──────────────────────────────────────────────────────
   function handleGoogleLogin() {
+    const redirectUrl = getAuthRedirectUrl();
     account.createOAuth2Session(
       OAuthProvider.Google,
-      `${window.location.origin}/`,
-      `${window.location.origin}/`,
+      redirectUrl,
+      redirectUrl,
     );
+  }
+
+  async function handleResendConfirmation() {
+    if (!email.trim()) {
+      setError("Informe seu e-mail para reenviar a confirmação.");
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      await account.resendSignupConfirmation(email);
+      setSuccess("Link reenviado! Verifique seu e-mail e clique em confirmar.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   // ── Submit principal ──────────────────────────────────────────────────────
@@ -227,7 +248,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
         // Com sessão ativa, cria ou atualiza perfil com CPF.
         await upsertRegistrationProfile(user.$id, cpfClean);
         // Reenvia confirmacao se a conta ainda nao estiver verificada.
-        await account.createVerification(`${window.location.origin}/`).catch(() => {});
+        await account.createVerification(getAuthRedirectUrl()).catch(() => {});
 
         const appUser: AppUser = { uid: user.$id, email: user.email };
 
@@ -245,7 +266,7 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
 
       // ── RECUPERAR SENHA ───────────────────────────────────────────────
       if (mode === "forgot") {
-        await account.createRecovery(email, `${window.location.origin}/`);
+        await account.createRecovery(email, getAuthRedirectUrl());
         setSuccess("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
         setLoading(false);
         return;
@@ -426,12 +447,19 @@ export default function LoginPage({ onLogin }: { onLogin: (user: AppUser) => voi
             {/* Links de troca de modo */}
             <div className="text-center text-xs text-gray-500 pt-1">
               {mode === "login" && (
-                <>Não tem conta?{" "}
-                  <button type="button" onClick={() => switchMode("register")}
-                    className="text-teal-600 font-medium hover:underline">
-                    Cadastre-se
+                <div className="space-y-2">
+                  <div>
+                    Não tem conta?{" "}
+                    <button type="button" onClick={() => switchMode("register")}
+                      className="text-teal-600 font-medium hover:underline">
+                      Cadastre-se
+                    </button>
+                  </div>
+                  <button type="button" onClick={handleResendConfirmation} disabled={loading}
+                    className="text-teal-600 font-medium hover:underline disabled:opacity-50">
+                    Reenviar confirmação
                   </button>
-                </>
+                </div>
               )}
               {mode === "register" && (
                 <>Já tem conta?{" "}

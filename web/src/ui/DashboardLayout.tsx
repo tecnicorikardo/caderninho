@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { account } from "@/lib/supabase";
+import { account, getAuthRedirectUrl } from "@/lib/supabase";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AIAssistant from "@/ui/AIAssistant";
 import { useUserContext } from "@/lib/userContext";
@@ -138,7 +138,7 @@ export default function DashboardLayout({
   async function handleResendVerification() {
     setVerifyLoading(true);
     try {
-      await account.createVerification(`${window.location.origin}/`);
+      await account.createVerification(getAuthRedirectUrl());
       alert("Link enviado! Verifique seu e-mail e clique no link.");
     } catch {
       // silencioso

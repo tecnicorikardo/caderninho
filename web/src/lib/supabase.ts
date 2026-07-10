@@ -8,6 +8,7 @@ const env = import.meta.env as Record<string, string | undefined>;
 
 const SUPABASE_URL = env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY ?? env.VITE_SUPABASE_ANON_KEY;
+const AUTH_REDIRECT_URL = env.VITE_AUTH_REDIRECT_URL;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error("Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no ambiente.");
@@ -22,6 +23,15 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 export const DATABASE_ID = "supabase";
+
+export function getAuthRedirectUrl(path = "/") {
+  const baseUrl = AUTH_REDIRECT_URL
+    ?? (typeof window !== "undefined" ? window.location.origin : "");
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  return `${normalizedBaseUrl}${normalizedPath}`;
+}
 
 export const COLLECTIONS = {
   PROFILES: env.VITE_SUPABASE_TABLE_PROFILES ?? "users_profiles",
@@ -131,16 +141,12 @@ function normalizeError(error: { message?: string; code?: string; status?: numbe
 
 export const account = {
   async create(_userId: string, email: string, password: string, name?: string) {
-    const emailRedirectTo = typeof window !== "undefined"
-      ? `${window.location.origin}/`
-      : undefined;
-
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: name ? { name } : undefined,
-        emailRedirectTo,
+        emailRedirectTo: getAuthRedirectUrl(),
       },
     });
 
@@ -188,6 +194,15 @@ export const account = {
   async createRecovery(email: string, redirectUrl: string) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl,
+    });
+    if (error) throw normalizeError(error);
+  },
+
+  async resendSignupConfirmation(email: string) {
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: getAuthRedirectUrl() },
     });
     if (error) throw normalizeError(error);
   },

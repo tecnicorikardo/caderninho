@@ -119,6 +119,37 @@ as causas mais comuns sao e-mail/senha incorretos ou e-mail ainda nao
 confirmado. Para liberar acesso imediato sem confirmacao, alterar no painel do
 Supabase em Authentication > Providers > Email > Confirm email.
 
+### URL correta para confirmacao de e-mail
+
+Se o link do e-mail abrir `localhost:3000`, a configuracao de redirecionamento
+do Supabase esta apontando para ambiente local. Ajuste no painel:
+
+1. Acesse Supabase > projeto `nhrzaeteadlzvgqfqzkr`.
+2. Abra Authentication > URL Configuration.
+3. Em Site URL, use:
+
+```text
+https://bloquinhodigital.web.app
+```
+
+4. Em Redirect URLs, adicione:
+
+```text
+https://bloquinhodigital.web.app
+https://bloquinhodigital.web.app/**
+https://bloquinhodigital.firebaseapp.com
+https://bloquinhodigital.firebaseapp.com/**
+```
+
+5. Salve e gere um novo e-mail de confirmacao. Links antigos continuam com a
+URL antiga.
+
+No frontend, a URL usada nos fluxos de confirmacao/recuperacao fica em:
+
+```text
+VITE_AUTH_REDIRECT_URL=https://bloquinhodigital.web.app
+```
+
 ## Sinal de app antigo ou configuracao errada
 
 Se o console do navegador mostrar chamadas para:

@@ -1,4 +1,4 @@
-import { account, ID } from "../supabase";
+import { account, getAuthRedirectUrl, ID } from "../supabase";
 import type { IAuthService } from "../db-adapter";
 
 export class SupabaseAuthService implements IAuthService {
@@ -33,7 +33,7 @@ export class SupabaseAuthService implements IAuthService {
 
   async resetPassword(email: string): Promise<void> {
     try {
-      const redirectUrl = `${window.location.origin}/reset-password`;
+      const redirectUrl = getAuthRedirectUrl();
       await account.createRecovery(email, redirectUrl);
     } catch (error: any) {
       throw new Error(error.message || "Erro ao enviar e-mail de recuperacao");
