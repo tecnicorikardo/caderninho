@@ -3,6 +3,12 @@
 Este projeto usa um workflow gratuito do GitHub Actions para fazer um ping leve
 no Supabase a cada 3 dias.
 
+Antes de configurar ou restaurar o Supabase, confira a conta correta em:
+
+```text
+CONTAS_E_PROJETOS.md
+```
+
 Arquivo:
 
 ```text

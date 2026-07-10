@@ -38,6 +38,9 @@ npm run dev
 
 ## Preparar Supabase
 
+Antes de mexer em conta, projeto pausado ou GitHub Actions, confira:
+`CONTAS_E_PROJETOS.md`.
+
 Execute o arquivo `supabase/schema.sql` no SQL Editor do Supabase. Ele cria as
 tabelas, indices, triggers de `updatedAt` e politicas RLS para isolamento por
 usuario autenticado.

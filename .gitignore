@@ -23,6 +23,7 @@ mobile_flutter/build
 .env.*
 !.env.example
 .appdata/
+.codex-remote-attachments/
 .localappdata/
 .userprofile/
 .pub-cache/
