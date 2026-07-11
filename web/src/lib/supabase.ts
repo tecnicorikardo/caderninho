@@ -139,6 +139,20 @@ function normalizeError(error: { message?: string; code?: string; status?: numbe
   return err;
 }
 
+async function getCurrentAccessToken() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw normalizeError(error);
+
+  return data.session?.access_token ?? null;
+}
+
+function withCurrentAuth<T extends { setHeader(name: string, value: string): T }>(
+  request: T,
+  accessToken: string | null,
+): T {
+  return accessToken ? request.setHeader("Authorization", `Bearer ${accessToken}`) : request;
+}
+
 export const account = {
   async create(_userId: string, email: string, password: string, name?: string) {
     const { data, error } = await supabase.auth.signUp({
@@ -161,6 +175,12 @@ export const account = {
   async createEmailPasswordSession(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw normalizeError(error);
+    if (data.session) {
+      await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+    }
     if (!data.user) throw new Error("Nao foi possivel iniciar sessao.");
     return { userId: data.user.id };
   },
@@ -240,7 +260,11 @@ export const databases = {
     tableName: string,
     queries: QueryClause[] = [],
   ): Promise<{ documents: any[]; total: number }> {
-    let request = supabase.from(tableName).select("*", { count: "exact" });
+    const accessToken = await getCurrentAccessToken();
+    let request = withCurrentAuth(
+      supabase.from(tableName).select("*", { count: "exact" }),
+      accessToken,
+    );
     let limit: number | undefined;
     let offset = 0;
 
@@ -293,11 +317,17 @@ export const databases = {
   },
 
   async getDocument(_databaseId: string, tableName: string, documentId: string): Promise<any> {
-    const { data, error } = await supabase
-      .from(tableName)
-      .select("*")
-      .eq("id", documentId)
-      .maybeSingle();
+    const accessToken = await getCurrentAccessToken();
+    const request = withCurrentAuth(
+      supabase
+        .from(tableName)
+        .select("*")
+        .eq("id", documentId)
+        .maybeSingle(),
+      accessToken,
+    );
+
+    const { data, error } = await request;
 
     if (error) throw normalizeError(error);
     if (!data) {
@@ -322,11 +352,17 @@ export const databases = {
       ...data,
     });
 
-    const { data: row, error } = await supabase
-      .from(tableName)
-      .insert(payload)
-      .select("*")
-      .single();
+    const accessToken = await getCurrentAccessToken();
+    const request = withCurrentAuth(
+      supabase
+        .from(tableName)
+        .insert(payload)
+        .select("*")
+        .single(),
+      accessToken,
+    );
+
+    const { data: row, error } = await request;
 
     if (error) throw normalizeError(error);
     return toDocument(row as Record<string, unknown>);
@@ -338,22 +374,34 @@ export const databases = {
     documentId: string,
     data: Record<string, unknown>,
   ): Promise<any> {
-    const { data: row, error } = await supabase
-      .from(tableName)
-      .update(cleanPayload(data))
-      .eq("id", documentId)
-      .select("*")
-      .single();
+    const accessToken = await getCurrentAccessToken();
+    const request = withCurrentAuth(
+      supabase
+        .from(tableName)
+        .update(cleanPayload(data))
+        .eq("id", documentId)
+        .select("*")
+        .single(),
+      accessToken,
+    );
+
+    const { data: row, error } = await request;
 
     if (error) throw normalizeError(error);
     return toDocument(row as Record<string, unknown>);
   },
 
   async deleteDocument(_databaseId: string, tableName: string, documentId: string) {
-    const { error } = await supabase
-      .from(tableName)
-      .delete()
-      .eq("id", documentId);
+    const accessToken = await getCurrentAccessToken();
+    const request = withCurrentAuth(
+      supabase
+        .from(tableName)
+        .delete()
+        .eq("id", documentId),
+      accessToken,
+    );
+
+    const { error } = await request;
 
     if (error) throw normalizeError(error);
   },
