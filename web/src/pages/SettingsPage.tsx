@@ -8,6 +8,7 @@ import DashboardLayout from "@/ui/DashboardLayout";
 import type { BrandMargin } from "@/lib/types";
 import { downloadTemplate, exportData, parseImportFile, importFromWorkbook } from "@/lib/spreadsheet";
 import type { ImportPreview } from "@/lib/spreadsheet";
+import { seedDemoData } from "@/lib/demoData";
 import type { WorkBook } from "xlsx";
 
 const DEFAULT_BRANDS: BrandMargin[] = [
@@ -53,6 +54,8 @@ export default function SettingsPage({ user }: { user: AppUser }) {
   const [importWb, setImportWb] = useState<WorkBook | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [demoSeeding, setDemoSeeding] = useState(false);
+  const [demoMsg, setDemoMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // Apagar tudo
   const [wiping, setWiping] = useState(false);
@@ -190,6 +193,27 @@ export default function SettingsPage({ user }: { user: AppUser }) {
     } catch (ex) {
       setImportMsg({ type: "err", text: ex instanceof Error ? ex.message : "Erro ao importar." });
     } finally { setImporting(false); setImportProgress(null); }
+  }
+
+  async function handleSeedDemoData() {
+    setDemoSeeding(true);
+    setDemoMsg(null);
+    try {
+      const result = await seedDemoData(user.uid);
+      const created = result.customersCreated + result.productsCreated;
+      if (created === 0) {
+        setDemoMsg({ type: "ok", text: "Os dados de teste ja existem nesta conta." });
+      } else {
+        setDemoMsg({
+          type: "ok",
+          text: `Criados ${result.customersCreated} clientes e ${result.productsCreated} produtos de teste.`,
+        });
+      }
+    } catch (ex) {
+      setDemoMsg({ type: "err", text: ex instanceof Error ? ex.message : "Erro ao criar dados de teste." });
+    } finally {
+      setDemoSeeding(false);
+    }
   }
 
   // ── Alterar senha ─────────────────────────────────────────────────────────
@@ -424,6 +448,19 @@ export default function SettingsPage({ user }: { user: AppUser }) {
               {exporting ? "Exportando…" : "⬇ Exportar Excel"}
             </button>
           </div>
+
+          <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 flex items-center justify-between gap-4 mb-3">
+            <div>
+              <div className="text-sm font-medium text-gray-800">Dados de teste</div>
+              <div className="text-xs text-gray-500 mt-0.5">Cria 10 clientes e 10 produtos na conta logada.</div>
+            </div>
+            <button onClick={handleSeedDemoData} disabled={demoSeeding} className="flex-shrink-0 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-gray-700 px-4 py-2.5 text-sm font-medium disabled:opacity-50 transition-colors">
+              {demoSeeding ? "Criando..." : "Criar testes"}
+            </button>
+          </div>
+          {demoMsg && (
+            <div className={`text-xs p-2.5 rounded-lg mb-3 ${demoMsg.type === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{demoMsg.text}</div>
+          )}
 
           <div className="space-y-3">
             <div>
