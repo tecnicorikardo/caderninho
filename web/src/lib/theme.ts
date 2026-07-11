@@ -4,6 +4,7 @@
  */
 
 export const DEFAULT_COLOR = "#0d7a6e";
+const THEME_STORAGE_KEY = "bloquinho_theme_color";
 
 export const PRESET_COLORS = [
   { label: "Verde Teal (padrão)", value: "#0d7a6e" },
@@ -15,6 +16,35 @@ export const PRESET_COLORS = [
   { label: "Verde Escuro",        value: "#2e7d32" },
   { label: "Cinza Grafite",       value: "#37474f" },
 ];
+
+function isHexColor(color: string | null): color is string {
+  return Boolean(color && /^#[0-9a-fA-F]{6}$/.test(color));
+}
+
+export function getCachedThemeColor(): string | null {
+  try {
+    const color = localStorage.getItem(THEME_STORAGE_KEY);
+    return isHexColor(color) ? color : null;
+  } catch {
+    return null;
+  }
+}
+
+export function cacheThemeColor(color: string) {
+  if (!isHexColor(color)) return;
+
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, color);
+  } catch {
+    // Ignora navegadores/modos que bloqueiam localStorage.
+  }
+}
+
+export function applyCachedTheme() {
+  const cachedColor = getCachedThemeColor();
+  if (cachedColor) applyTheme(cachedColor);
+  return cachedColor;
+}
 
 /** Converte hex para RGB separado por espaço (para uso em rgba()) */
 function hexToRgb(hex: string): string {

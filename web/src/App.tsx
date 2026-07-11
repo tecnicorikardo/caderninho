@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { account } from "@/lib/supabase";
 import { ensureUserProfile } from "@/lib/profile";
-import { applyTheme } from "@/lib/theme";
+import { applyCachedTheme, applyTheme, cacheThemeColor } from "@/lib/theme";
 import { getEffectivePlan, trialDaysLeft } from "@/lib/plan";
 import { UserContext } from "@/lib/userContext";
 import LoginPage from "@/pages/LoginPage";
@@ -37,6 +37,7 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    applyCachedTheme();
 
     async function checkSession() {
       try {
@@ -52,7 +53,10 @@ export default function App() {
 
         if (!active) return;
 
-        if (profile.themeColor) applyTheme(profile.themeColor as string);
+        if (profile.themeColor) {
+          applyTheme(profile.themeColor as string);
+          cacheThemeColor(profile.themeColor as string);
+        }
 
         setState({
           status: "signed_in",
@@ -88,7 +92,10 @@ export default function App() {
             setState({ status: "loading" });
             try {
               const profile = await ensureUserProfile(user.uid);
-              if (profile.themeColor) applyTheme(profile.themeColor as string);
+              if (profile.themeColor) {
+                applyTheme(profile.themeColor as string);
+                cacheThemeColor(profile.themeColor as string);
+              }
               // Busca emailVerification atualizado do Supabase
               const freshUser = await account.get().catch(() => null);
               setState({

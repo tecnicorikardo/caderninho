@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { AppUser } from "@/App";
 import { databases, DATABASE_ID, COLLECTIONS, Query, account } from "@/lib/supabase";
 import { nowISO } from "@/lib/timestamp";
-import { applyTheme, PRESET_COLORS, DEFAULT_COLOR } from "@/lib/theme";
+import { applyTheme, cacheThemeColor, getCachedThemeColor, PRESET_COLORS, DEFAULT_COLOR } from "@/lib/theme";
 import { updateUserProfile } from "@/lib/profile";
 import DashboardLayout from "@/ui/DashboardLayout";
 import type { BrandMargin } from "@/lib/types";
@@ -33,7 +33,7 @@ export default function SettingsPage({ user }: { user: AppUser }) {
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // Tema / cor
-  const [themeColor, setThemeColor] = useState(DEFAULT_COLOR);
+  const [themeColor, setThemeColor] = useState(() => getCachedThemeColor() ?? DEFAULT_COLOR);
   const [themeSaving, setThemeSaving] = useState(false);
   const [themeMsg, setThemeMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -106,6 +106,7 @@ export default function SettingsPage({ user }: { user: AppUser }) {
     setThemeMsg(null);
     try {
       await updateUserProfile(user.uid, { themeColor });
+      cacheThemeColor(themeColor);
       setThemeMsg({ type: "ok", text: "Cor salva com sucesso!" });
     } catch (e) {
       setThemeMsg({ type: "err", text: e instanceof Error ? e.message : "Erro ao salvar." });
