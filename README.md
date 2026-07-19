@@ -38,7 +38,7 @@ npm run dev
 
 ## Preparar Supabase
 
-Antes de mexer em conta, projeto pausado ou GitHub Actions, confira:
+Antes de mexer em conta, projeto pausado ou keep-alive, confira:
 `CONTAS_E_PROJETOS.md`.
 
 Execute o arquivo `supabase/schema.sql` no SQL Editor do Supabase. Ele cria as
@@ -67,11 +67,12 @@ Guia detalhado: `CONFIGURAR_SUPABASE_EDGE_FUNCTION_PIX.md`.
 
 ## Keep-alive Supabase
 
-O workflow `.github/workflows/keep-alive.yml` faz um ping gratuito no Supabase a
-cada 3 dias para reduzir o risco de pausa por inatividade no plano Free.
+O keep-alive oficial usa `cron-job.org`, porque o GitHub Actions da conta esta
+bloqueado por billing e nao ha cartao disponivel. O cron externo faz um ping
+gratuito no Supabase para reduzir o risco de pausa por inatividade no plano
+Free.
 
-Configure o secret `SUPABASE_PUBLISHABLE_KEY` no GitHub Actions. Guia:
-`MANTER_SUPABASE_ATIVO.md`.
+Guia: `MANTER_SUPABASE_ATIVO.md`.
 
 Deploy da Edge Function:
 

@@ -1,6 +1,6 @@
 # Contas e projetos oficiais
 
-Ultima atualizacao: 2026-07-10
+Ultima atualizacao: 2026-07-19
 
 Este arquivo existe para evitar confusao entre repositorios, contas GitHub e
 projetos Supabase parecidos.
@@ -11,8 +11,8 @@ projetos Supabase parecidos.
 https://github.com/tecnicorikardo/caderninho.git
 ```
 
-Este e o repositorio que deve receber commits, pushes e configuracoes de
-GitHub Actions do app Bloquinho Digital.
+Este e o repositorio que deve receber commits e pushes do app Bloquinho
+Digital.
 
 ## Supabase correto do sistema
 
@@ -55,29 +55,27 @@ documentado no app `tecnicorikardo/caderninho`.
 3. Abrir o projeto `nhrzaeteadlzvgqfqzkr`.
 4. Clicar em `Resume project`.
 5. Aguardar sair de `Coming up...` para `Active`.
-6. Abrir o GitHub do app.
-7. Ir em `Actions`.
-8. Rodar manualmente o workflow `Supabase Keep Alive`.
+6. Abrir o `cron-job.org`.
+7. Rodar manualmente o cronjob `Supabase Keep Alive - Bloquinho Digital`.
 
 ## Keep-alive
 
-Workflow:
+Servico oficial:
 
 ```text
-.github/workflows/keep-alive.yml
+https://cron-job.org
 ```
 
-Chave do GitHub Actions:
+Cronjob:
 
 ```text
-SUPABASE_PUBLISHABLE_KEY
+Supabase Keep Alive - Bloquinho Digital
 ```
 
-O workflow tem a publishable key publica no proprio arquivo. Se ela for
-rotacionada, atualize a linha `SUPABASE_PUBLISHABLE_KEY` em
-`.github/workflows/keep-alive.yml`.
+Se a publishable key for rotacionada, atualize os headers `apikey` e
+`Authorization` no `cron-job.org`.
 
-Nao usar `service_role` no GitHub Actions.
+Nao usar `service_role` no cronjob.
 
 Guia detalhado:
 

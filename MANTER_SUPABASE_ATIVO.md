@@ -1,7 +1,8 @@
-# Manter Supabase ativo com GitHub Actions
+# Manter Supabase ativo sem cartao
 
-Este projeto usa um workflow gratuito do GitHub Actions para fazer um ping leve
-no Supabase a cada 3 dias.
+Este projeto usa o plano gratuito da Supabase. Como o GitHub Actions da conta
+`tecnicorikardo` esta bloqueado por billing e nao ha cartao disponivel, o
+keep-alive oficial passa a ser feito pelo `cron-job.org`.
 
 Antes de configurar ou restaurar o Supabase, confira a conta correta em:
 
@@ -9,103 +10,106 @@ Antes de configurar ou restaurar o Supabase, confira a conta correta em:
 CONTAS_E_PROJETOS.md
 ```
 
-Arquivo:
+## Metodo oficial: cron-job.org
+
+Use:
 
 ```text
-.github/workflows/keep-alive.yml
+https://cron-job.org
 ```
+
+O `cron-job.org` e gratuito, permite agendar chamadas HTTP e aceita headers
+customizados. Ele nao depende do GitHub Actions nem de Firebase Functions.
 
 ## Como funciona
 
-O workflow chama:
+O cron chama:
 
 ```text
 https://nhrzaeteadlzvgqfqzkr.supabase.co/rest/v1/users_profiles?select=id&limit=1
 ```
 
-Ele usa a chave publica do Supabase como header `apikey` e `Authorization`.
-Com RLS ativo, a chamada pode retornar uma lista vazia, mas ainda valida que a
-API REST e o banco estao respondendo.
+Com RLS ativo, a chamada pode retornar uma lista vazia (`[]`), mas ainda valida
+que a API REST e o banco estao respondendo.
 
-## Configurar ou atualizar a chave no GitHub
+## Configuracao recomendada
 
-O workflow ja possui a publishable key publica do frontend no proprio arquivo.
-Isso e seguro porque essa chave ja e usada no navegador e o RLS continua
-protegendo os dados.
+No painel do `cron-job.org`, crie ou edite o cronjob com estes dados:
 
-Este passo so e necessario se a publishable key for rotacionada no Supabase.
-Nesse caso, atualize a linha `SUPABASE_PUBLISHABLE_KEY` em
-`.github/workflows/keep-alive.yml`.
+```text
+Title: Supabase Keep Alive - Bloquinho Digital
+URL: https://nhrzaeteadlzvgqfqzkr.supabase.co/rest/v1/users_profiles?select=id&limit=1
+Request method: GET
+Timezone: America/Sao_Paulo
+Schedule: todos os dias as 03:00
+```
+
+Headers:
+
+```text
+apikey: sb_publishable_4vudSxBAP0wT6w8Jnwi6Mw_c9MrUukm
+Authorization: Bearer sb_publishable_4vudSxBAP0wT6w8Jnwi6Mw_c9MrUukm
+Accept: application/json
+```
+
+Nao use `service_role` aqui. A chave deve ser a publishable key, a mesma usada
+pelo frontend.
+
+## Teste esperado
+
+Ao clicar em `Test run`, o status esperado e:
+
+```text
+200 OK
+```
+
+O corpo pode vir como:
+
+```json
+[]
+```
+
+Isso esta correto. O objetivo e acordar a API, nao retornar dados.
+
+## Quando a chave for rotacionada
+
+Se a publishable key for trocada no Supabase:
 
 1. Abra o Supabase.
 2. Copie a nova publishable key.
-3. Atualize no arquivo:
+3. Atualize os headers `apikey` e `Authorization` no `cron-job.org`.
+4. Atualize tambem `web/.env.local` e a configuracao de build/deploy, se
+   necessario.
+5. Rode `Test run` no `cron-job.org`.
 
-```text
-.github/workflows/keep-alive.yml
-```
+## Por que nao usar GitHub Actions
 
-4. Faca commit e push.
-5. Confira a aba `Actions` do GitHub.
-
-Nao use `service_role` aqui. A chave do workflow deve ser a publishable key,
-a mesma usada pelo frontend.
-
-## Rodar manualmente
-
-Depois que o arquivo estiver na branch `main`:
-
-1. Abra a aba `Actions` no GitHub.
-2. Selecione `Supabase Keep Alive`.
-3. Clique em `Run workflow`.
-4. Confira se o job termina com sucesso.
-
-Se o projeto ja estiver pausado, restaure primeiro no painel da Supabase e rode
-o workflow manualmente em seguida.
-
-## Falha: account locked due to billing issue
-
-Se o GitHub Actions mostrar esta mensagem:
+O GitHub Actions estava falhando antes de iniciar o runner com:
 
 ```text
 The job was not started because your account is locked due to a billing issue.
 ```
 
-entao o workflow nem chegou a executar o `curl`. Nao e erro do Supabase, da
-publishable key ou do Firebase. O bloqueio esta na conta GitHub antes de iniciar
-o runner.
+Isso significa que o workflow nem chegava a executar o `curl`. Portanto, nao
+era erro do Supabase, da publishable key ou do Firebase.
 
-Para resolver:
+O workflow `.github/workflows/keep-alive.yml` foi removido para parar os e-mails
+de falha agendada.
 
-1. Abra o GitHub.
-2. Clique na foto do perfil.
-3. Va em `Settings`.
-4. Abra `Billing and licensing`.
-5. Confira `Payment information`, `Payment history`, `Budgets and alerts` e
-   `Usage`.
-6. Verifique tambem se o e-mail principal da conta esta confirmado em
-   `Settings > Emails`.
-7. Depois de liberar a conta, rode novamente o workflow em `Actions`.
+## Quando o Supabase pausar
 
-Se tudo aparecer como gratuito e mesmo assim continuar bloqueado, abra um
-chamado em:
-
-```text
-https://support.github.com/contact
-```
-
-## Agendamento atual
-
-```yaml
-cron: "17 9 */3 * *"
-```
-
-Isso roda a cada 3 dias as 09:17 UTC.
+1. Entre em `https://supabase.com/dashboard`.
+2. Use o GitHub conectado ao e-mail `emilycristini2024@gmail.com`.
+3. Abra o projeto `nhrzaeteadlzvgqfqzkr`.
+4. Clique em `Resume project`.
+5. Aguarde sair de `Coming up...` para `Active`.
+6. Abra o `cron-job.org`.
+7. Rode `Test run` no cronjob do Supabase.
 
 ## Limites importantes
 
 - Este ping nao substitui o plano Pro da Supabase.
-- Se a Supabase pausar o projeto antes do primeiro ping, restaure manualmente.
-- Se o GitHub Actions for desativado ou falhar, o projeto pode pausar de novo.
-- Verifique a aba `Actions` depois do primeiro agendamento para confirmar que o
-  workflow esta rodando.
+- Se o `cron-job.org` parar ou falhar por muitos dias, o projeto pode pausar.
+- Verifique o historico do cronjob periodicamente.
+- O projeto continua no Firebase Spark para Hosting; nao precisa Firebase
+  Functions.
