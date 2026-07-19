@@ -73,9 +73,9 @@ Chave do GitHub Actions:
 SUPABASE_PUBLISHABLE_KEY
 ```
 
-O workflow tem a publishable key publica como fallback no proprio arquivo. Se
-ela for rotacionada, atualize a repository variable `SUPABASE_PUBLISHABLE_KEY`
-no GitHub.
+O workflow tem a publishable key publica no proprio arquivo. Se ela for
+rotacionada, atualize a linha `SUPABASE_PUBLISHABLE_KEY` em
+`.github/workflows/keep-alive.yml`.
 
 Nao usar `service_role` no GitHub Actions.
 

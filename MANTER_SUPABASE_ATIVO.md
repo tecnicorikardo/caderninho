@@ -29,27 +29,24 @@ API REST e o banco estao respondendo.
 
 ## Configurar ou atualizar a chave no GitHub
 
-O workflow ja possui a publishable key publica do frontend como fallback no
-proprio arquivo. Isso e seguro porque essa chave ja e usada no navegador e o
-RLS continua protegendo os dados.
+O workflow ja possui a publishable key publica do frontend no proprio arquivo.
+Isso e seguro porque essa chave ja e usada no navegador e o RLS continua
+protegendo os dados.
 
 Este passo so e necessario se a publishable key for rotacionada no Supabase.
-Prefira **Variables** para esta chave publica.
+Nesse caso, atualize a linha `SUPABASE_PUBLISHABLE_KEY` em
+`.github/workflows/keep-alive.yml`.
 
-1. Abra o repositorio no GitHub.
-2. Acesse `Settings`.
-3. Acesse `Secrets and variables`.
-4. Clique em `Actions`.
-5. Abra a aba `Variables`.
-6. Clique em `New repository variable`.
-7. Nome:
+1. Abra o Supabase.
+2. Copie a nova publishable key.
+3. Atualize no arquivo:
 
 ```text
-SUPABASE_PUBLISHABLE_KEY
+.github/workflows/keep-alive.yml
 ```
 
-8. Valor: cole a publishable key do Supabase.
-9. Salve.
+4. Faca commit e push.
+5. Confira a aba `Actions` do GitHub.
 
 Nao use `service_role` aqui. A chave do workflow deve ser a publishable key,
 a mesma usada pelo frontend.
