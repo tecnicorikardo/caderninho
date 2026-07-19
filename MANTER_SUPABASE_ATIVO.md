@@ -27,24 +27,32 @@ Ele usa a chave publica do Supabase como header `apikey` e `Authorization`.
 Com RLS ativo, a chamada pode retornar uma lista vazia, mas ainda valida que a
 API REST e o banco estao respondendo.
 
-## Configurar o Secret no GitHub
+## Configurar ou atualizar a chave no GitHub
+
+O workflow ja possui a publishable key publica do frontend como fallback no
+proprio arquivo. Isso e seguro porque essa chave ja e usada no navegador e o
+RLS continua protegendo os dados.
+
+Este passo so e necessario se a publishable key for rotacionada no Supabase.
+Prefira **Variables** para esta chave publica.
 
 1. Abra o repositorio no GitHub.
 2. Acesse `Settings`.
 3. Acesse `Secrets and variables`.
 4. Clique em `Actions`.
-5. Clique em `New repository secret`.
-6. Nome do secret:
+5. Abra a aba `Variables`.
+6. Clique em `New repository variable`.
+7. Nome:
 
 ```text
 SUPABASE_PUBLISHABLE_KEY
 ```
 
-7. Valor: cole a publishable key do Supabase.
-8. Salve.
+8. Valor: cole a publishable key do Supabase.
+9. Salve.
 
-Nao use `service_role` aqui. A chave do workflow deve ser a publishable/anon
-key, a mesma usada pelo frontend.
+Nao use `service_role` aqui. A chave do workflow deve ser a publishable key,
+a mesma usada pelo frontend.
 
 ## Rodar manualmente
 

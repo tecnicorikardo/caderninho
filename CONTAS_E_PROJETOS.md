@@ -67,11 +67,15 @@ Workflow:
 .github/workflows/keep-alive.yml
 ```
 
-Secret necessario no GitHub Actions:
+Chave do GitHub Actions:
 
 ```text
 SUPABASE_PUBLISHABLE_KEY
 ```
+
+O workflow tem a publishable key publica como fallback no proprio arquivo. Se
+ela for rotacionada, atualize a repository variable `SUPABASE_PUBLISHABLE_KEY`
+no GitHub.
 
 Nao usar `service_role` no GitHub Actions.
 

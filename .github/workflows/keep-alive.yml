@@ -4,6 +4,9 @@ on:
   schedule:
     # A cada 3 dias, 09:17 UTC. Evita os minutos mais concorridos do GitHub Actions.
     - cron: "17 9 */3 * *"
+  push:
+    paths:
+      - ".github/workflows/keep-alive.yml"
   workflow_dispatch:
 
 jobs:
@@ -13,7 +16,9 @@ jobs:
     timeout-minutes: 5
     env:
       SUPABASE_URL: https://nhrzaeteadlzvgqfqzkr.supabase.co
-      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      # Publishable key publica do frontend. Nao usar service_role aqui.
+      # Pode ser sobrescrita por uma repository variable se a chave for rotacionada.
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_4vudSxBAP0wT6w8Jnwi6Mw_c9MrUukm' }}
 
     steps:
       - name: Validar secret obrigatorio
