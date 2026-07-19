@@ -63,6 +63,37 @@ Depois que o arquivo estiver na branch `main`:
 Se o projeto ja estiver pausado, restaure primeiro no painel da Supabase e rode
 o workflow manualmente em seguida.
 
+## Falha: account locked due to billing issue
+
+Se o GitHub Actions mostrar esta mensagem:
+
+```text
+The job was not started because your account is locked due to a billing issue.
+```
+
+entao o workflow nem chegou a executar o `curl`. Nao e erro do Supabase, da
+publishable key ou do Firebase. O bloqueio esta na conta GitHub antes de iniciar
+o runner.
+
+Para resolver:
+
+1. Abra o GitHub.
+2. Clique na foto do perfil.
+3. Va em `Settings`.
+4. Abra `Billing and licensing`.
+5. Confira `Payment information`, `Payment history`, `Budgets and alerts` e
+   `Usage`.
+6. Verifique tambem se o e-mail principal da conta esta confirmado em
+   `Settings > Emails`.
+7. Depois de liberar a conta, rode novamente o workflow em `Actions`.
+
+Se tudo aparecer como gratuito e mesmo assim continuar bloqueado, abra um
+chamado em:
+
+```text
+https://support.github.com/contact
+```
+
 ## Agendamento atual
 
 ```yaml
