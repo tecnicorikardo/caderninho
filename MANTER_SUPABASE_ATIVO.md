@@ -18,6 +18,12 @@ Use:
 https://cron-job.org
 ```
 
+Conta cadastrada no `cron-job.org`:
+
+```text
+martinsantosric@gmail.com
+```
+
 O `cron-job.org` e gratuito, permite agendar chamadas HTTP e aceita headers
 customizados. Ele nao depende do GitHub Actions nem de Firebase Functions.
 
@@ -37,7 +43,7 @@ que a API REST e o banco estao respondendo.
 No painel do `cron-job.org`, crie ou edite o cronjob com estes dados:
 
 ```text
-Title: Supabase Keep Alive - Bloquinho Digital
+Title: Supabase Users Profile Check
 URL: https://nhrzaeteadlzvgqfqzkr.supabase.co/rest/v1/users_profiles?select=id&limit=1
 Request method: GET
 Timezone: America/Sao_Paulo
@@ -70,6 +76,28 @@ O corpo pode vir como:
 ```
 
 Isso esta correto. O objetivo e acordar a API, nao retornar dados.
+
+## Status conferido
+
+Em 19/07/2026, a tela do `cron-job.org` mostrou:
+
+```text
+Conta: martinsantosric@gmail.com
+Cronjob: Supabase Users Profile Check
+Proxima execucao: amanha as 03:00
+```
+
+Tambem foi feito teste local no endpoint com os headers recomendados, com
+resultado:
+
+```text
+200 OK
+Resposta: []
+```
+
+Na captura, o campo `Last execution` ainda aparece como `-`. Isso significa que
+o cronjob esta criado e agendado, mas ainda nao ha historico de execucao. Depois
+da primeira execucao ou de um `Test run`, conferir se o `History` mostra `200 OK`.
 
 ## Quando a chave for rotacionada
 

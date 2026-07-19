@@ -66,10 +66,16 @@ Servico oficial:
 https://cron-job.org
 ```
 
+Conta do cron-job.org:
+
+```text
+martinsantosric@gmail.com
+```
+
 Cronjob:
 
 ```text
-Supabase Keep Alive - Bloquinho Digital
+Supabase Users Profile Check
 ```
 
 Se a publishable key for rotacionada, atualize os headers `apikey` e
